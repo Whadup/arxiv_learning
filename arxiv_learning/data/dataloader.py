@@ -19,8 +19,8 @@ GZIP = False
 class RayManager():
 
     def __init__(self, custom_heuristics=None, total=100, blowout=1, test=False):
-        import heuristics.equations
-        import heuristics.context
+        import arxiv_learning.data.heuristics.equations
+        import arxiv_learning.data.heuristics.context
         
         # ray.init(address="129.217.30.174:6379")
         ray.init(address="auto")
@@ -34,15 +34,15 @@ class RayManager():
         else:
             self.heuristics = {
                 "same_paper_heuristic": {
-                    "data_set" : heuristics.context.SamePaper,
+                    "data_set" : arxiv_learning.data.heuristics.context.SamePaper,
                     "head": None
                 },
                 "same_section_heuristic": {
-                    "data_set" : heuristics.context.SameSection,
+                    "data_set" : arxiv_learning.data.heuristics.context.SameSection,
                     "head": None
                 },
                 # "equalities_heuristic": {
-                # 	"data_set" : heuristics.equations.EqualityHeuristic,
+                # 	"data_set" : arxiv_learning.data.heuristics.equations.EqualityHeuristic,
                 # 	"head": None
                 # },
             }
