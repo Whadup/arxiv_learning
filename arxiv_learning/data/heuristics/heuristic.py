@@ -14,9 +14,9 @@ GZIP = False
 
 class Heuristic(object):
     def __init__(self, test=False):
-        self.basefile = "/data/s1/pfahler/arxiv_processed/subset_ml/train/mathml.zip"
-        self.alphabet = load_mathml.load_alphabet(
-            os.path.join(os.path.split(self.basefile)[0], "vocab.pickle"))
+        self.basefile = os.path.abspath("subset_ml_train.zip")
+        self.alphabet = load_mathml.load_alphabet(os.path.abspath(
+            os.path.join(os.path.split(self.basefile)[0], "vocab.pickle")))
         if test and "train" in self.basefile:
             self.basefile = self.basefile.replace("train", "test")
         if MEMORY_BUFFERED:
@@ -26,12 +26,13 @@ class Heuristic(object):
             self.archive = zipfile.ZipFile(self.basefile, "r")
         self.data = self.archive.namelist()
         if (not test and "train" not in self.basefile) or (test and "test" not in self.basefile):
+            # TODO: Group according to paper, shuffle papers and take 1/5th of papers
             self.data = sorted(self.data)
             cutoff = len(self.data) // 5
             if test:
-                self.data = self.data[-cutoff:]
+                self.data = list([x for i, x in enumerate(self.data) if not i % 5])
             else:
-                self.data = self.data[:-cutoff]
+                self.data = list([x for i, x in enumerate(self.data) if i % 5])
         self.item = None
         self.setup_iterator()
 

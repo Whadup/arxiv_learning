@@ -1,36 +1,35 @@
 import datetime
-import os
-from math import ceil
 import torch
 import torch.optim as optim
 import tqdm
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from arxiv_learning.data.dataloader import RayManager
-import arxiv_learning.data.heuristics as heuristics
-from arxiv_learning.models.graph_cnn import GraphCNN
-import arxiv_learning.models.loss as losses
-from arxiv_learning.models.scheduler import WarmupLinearSchedule
+import arxiv_learning.data.heuristics.json_dataset
+from arxiv_learning.nn.graph_cnn import GraphCNN
+import arxiv_learning.nn.loss as losses
+from arxiv_learning.nn.scheduler import WarmupLinearSchedule
 
 
 
-def train_model(batch_size, learning_rate, epochs, curriculum, model, sacred_experiment):
+def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
     """
     train a model
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    from torch_geometric.nn import GatedGraphConv
     net = GraphCNN() #layer=GatedGraphConv, args=(3,))
     criterion = losses.HistogramLoss(weighted=False).to(device)
     # torch.set_default_dtype(torch.float16)
     net = net.to(device)
-    trainloader = RayManager(total=500, blowout=24)
+    trainloader = RayManager(total=500, blowout=16)
     # testloader = ml.dataloader.RayManager(total=500, blowout=16, test=True)
-    testloader = RayManager(custom_heuristics={
-         "json_heuristic": {
-             "data_set" : heuristics.json_dataset.JsonDataset,
-             "head": None
-         }}, total=1000, blowout=10, test=True)
+    testloader = RayManager(
+        # custom_heuristics={
+        #  "json_heuristic": {
+        #      "data_set" : arxiv_learning.data.heuristics.json_dataset.JsonDataset,
+        #      "head": None
+        #  }}, 
+         total=1000, blowout=10, test=True)
     # trainloader = ml.dataloader.data_loader(batch_size, curriculum=curriculum, graph=model == "graph")
     # testloader = ml.dataloader.data_loader(batch_size, curriculum=False, test=True, graph=model == "graph")
     loss_log_interval = 1000
@@ -67,7 +66,7 @@ def train_model(batch_size, learning_rate, epochs, curriculum, model, sacred_exp
                             dist_sim, dist_dissim1, dist_dissim2 = net.forward3(data)
 
                     loss = criterion(dist_sim, dist_dissim1.view(-1), dist_dissim2, torch.ones(1), torch.zeros(1))
-                    if len(dist_dissim1.shape)>1:
+                    if len(dist_dissim1.shape) > 1:
                         dist_dissim2 = dist_dissim1
                         dist_dissim1 = dist_dissim1.max(dim=1)[0]
                     percentage = (torch.clamp(loss, min=0.0)).sum().item()
@@ -129,8 +128,8 @@ MODEL_PATH = "checkpoints/"
 SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
 
 @SACRED_EXPERIMENT.capture
-def train(batch_size, learning_rate, epochs, curriculum, model, _run):
-    train_model(batch_size, learning_rate, epochs, curriculum, model, SACRED_EXPERIMENT)
+def train(batch_size, learning_rate, epochs, model, _run):
+    train_model(batch_size, learning_rate, epochs, model, SACRED_EXPERIMENT)
     print("FINISHED RUN", _run._id)
 
 @SACRED_EXPERIMENT.config
@@ -138,7 +137,6 @@ def hyperparamters():
     batch_size = 256
     learning_rate = 0.0001
     epochs = 20
-    curriculum = False
     model = "graph"
 
 

@@ -1,5 +1,6 @@
 import ray
 import os
+import json
 import torch
 import numpy as np
 from random import shuffle, seed, randint
@@ -13,83 +14,91 @@ def load_xml(archive, alphabet, file):
         raise FileNotFoundError(file)
     return load_mathml.load_pytorch(None, alphabet, string=xml)
 
+def load_json(archive, file):
+    try:
+        return json.load(archive.open(file, "r"))
+    except json.decoder.JSONDecodeError as e:
+        return None
+
+def sample_equation(paper, size=None):
+    all_eqs = sum([
+        [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
+        , [])
+    if all_eqs:
+        try:
+            return np.random.choice(all_eqs, size=size, replace=False)
+        except:
+            return None
+    return None
+
 @ray.remote
 class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
     def __init__(self, test=False):
         super().__init__(test=test)
-        from itertools import groupby
-        self.papers = []
-        self.paper_ids = []
-        for p, e in groupby(self.data, key=lambda x:x.split("/")[1]):
-            self.papers.append(list([x for x in e if x.endswith("kmathml")]))
-            self.paper_ids.append(p)
-        # self.generator = iter(self.batch_and_pickle())
+
 
     def __iter__(self):
         while True:
-            i = np.random.choice(len(self.papers))
-            eqs = self.papers[i]
-            if len(eqs)<2:
+            i = np.random.choice(len(self.data))
+            paper = load_json(self.archive, self.data[i])
+            if paper is None:
+                continue
+            pair = sample_equation(paper, size=2)
+            if pair is None:
                 # del self.papers[i]
                 continue
-            other_paper = (i + randint(0,len(self.papers)-1)) % len(self.papers)
-            neg_eqs = self.papers[other_paper]
-            if not neg_eqs:
-                # del self.papers[other_paper]
+            x, y = pair
+            # print(x)
+            j = (i + randint(0, len(self.data)-1)) % len(self.data)
+            other_paper = load_json(self.archive, self.data[j])
+            if other_paper is None:
                 continue
-            x, y = np.random.choice(eqs, size=2)
-            z = np.random.choice(neg_eqs)
-            try:
-                x = load_xml(self.archive, self.alphabet, x)
-                y = load_xml(self.archive, self.alphabet, y)
-                z = load_xml(self.archive, self.alphabet, z)
-                yield x
-                yield y
-                yield z
-                # self.item = (x,y,z)
-                # return self.item
-            except Exception as identifier:
-                print(type(identifier), identifier)
-                pass
+            z = sample_equation(other_paper)
+            if z is None:
+                continue
+            # print(z)
+            x = load_mathml.load_pytorch(None, self.alphabet, string=x)
+            y = load_mathml.load_pytorch(None, self.alphabet, string=y)
+            z = load_mathml.load_pytorch(None, self.alphabet, string=z)
+            yield x
+            yield y
+            yield z
+
+
 
 @ray.remote
 class SameSection(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
-    def __init__(self, test=False):
-        from arxiv_learning.data.heuristics.equations import group_sections
-        from itertools import groupby
-        super().__init__(test=test)
-        self.papers = []
-        self.paper_ids = []
-        for p, e in groupby(self.data, key=group_sections):
-            self.papers.append(list([x for x in e if x.endswith("kmathml")]))
-            self.paper_ids.append(p)
-        # self.generator = iter(self.batch_and_pickle())
-
     #EXACT COPY FROM ABOVE!
     def __iter__(self):
         while True:
-            i = np.random.choice(len(self.papers))
-            eqs = self.papers[i]
-            if len(eqs)<2:
-                # del self.papers[i]
+            i = np.random.choice(len(self.data))
+            paper = load_json(self.archive, self.data[i])
+            if paper is None:
                 continue
-            other_paper = (i + randint(0,len(self.papers)-1)) % len(self.papers)
-            neg_eqs = self.papers[other_paper]
-            if not neg_eqs:
-                # del self.papers[other_paper]
-                continue
-            x, y = np.random.choice(eqs, size=2)
-            z = np.random.choice(neg_eqs)
             try:
-                x = load_xml(self.archive, self.alphabet, x)
-                y = load_xml(self.archive, self.alphabet, y)
-                z = load_xml(self.archive, self.alphabet, z)
-                yield x
-                yield y
-                yield z
-                # self.item = (x,y,z)
-                # return self.item
-            except Exception as identifier:
-                print(type(identifier), identifier)
-                pass
+                section = np.random.choice(paper["sections"])
+            except Exception as e:
+                print(type(e))
+                continue
+            equations = [eq["mathml"] for eq in section["equations"] if "mathml" in eq]
+            try:
+                pair = np.random.choice(equations, size=2, replace=False)
+            except:
+                continue
+            x, y = pair
+            # print(x)
+            j = (i + randint(0, len(self.data)-1)) % len(self.data)
+            other_paper = load_json(self.archive, self.data[j])
+            if other_paper is None:
+                continue
+            z = sample_equation(other_paper)
+            if z is None:
+                continue
+            # print(z)
+            x = load_mathml.load_pytorch(None, self.alphabet, string=x)
+            y = load_mathml.load_pytorch(None, self.alphabet, string=y)
+            z = load_mathml.load_pytorch(None, self.alphabet, string=z)
+            yield x
+            yield y
+            yield z
 

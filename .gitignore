@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 arxiv_learning.egg-info/
 .vscode/settings.json
+checkpoints/
+*.zip
+*.pickle
+*.pt

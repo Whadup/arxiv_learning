@@ -15,15 +15,13 @@ def load_xml(archive, alphabet, file):
     return arxiv_learning.data.load_mathml.load_pytorch(None, alphabet, string=xml)
 
 
-GZIP = False
 class RayManager():
 
     def __init__(self, custom_heuristics=None, total=100, blowout=1, test=False):
-        import arxiv_learning.data.heuristics.equations
-        import arxiv_learning.data.heuristics.context
+        
         
         # ray.init(address="129.217.30.174:6379")
-        ray.init(address="auto")
+        ray.init(address="auto", ignore_reinit_error=True)
         # ray.init(address='auto', redis_password='5241590000000000')
         # ray.init()
         self.total = total
@@ -32,6 +30,8 @@ class RayManager():
         if custom_heuristics is not None:
             self.heuristics = custom_heuristics
         else:
+            import arxiv_learning.data.heuristics.equations
+            import arxiv_learning.data.heuristics.context
             self.heuristics = {
                 "same_paper_heuristic": {
                     "data_set" : arxiv_learning.data.heuristics.context.SamePaper,
@@ -60,7 +60,7 @@ class RayManager():
         ray.shutdown()
 
     def __iter__(self):
-        from heuristics.heuristic import GZIP
+        from arxiv_learning.data.heuristics.heuristic import GZIP
         counter = 0
         for i, v in enumerate(self.heuristics.values()):
             v["data_set"].seed.remote(i)
@@ -70,7 +70,7 @@ class RayManager():
             item = v["data_set"].generate.remote()
             self.round.append(item)
             self.robin[item] = k
-        while counter < self.total and len(self.round)>0:
+        while counter < self.total and len(self.round) > 0:
             data, queue = ray.wait(self.round)
             data = data[0]
             dataset = self.robin[data]

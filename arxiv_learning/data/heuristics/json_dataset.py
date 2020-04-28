@@ -77,3 +77,6 @@ class JsonDataset(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.util
                 yield in1
                 yield in2
                 yield in3
+
+if __name__ == "__main__":
+    print("no main")

@@ -1,14 +1,16 @@
+
 """loads mathml xmls and returns a tree structure or a pytorch_geometric graph object"""
 import xml.etree.ElementTree as ET
 import pickle
 import torch
-
-EXAMPLE = "/data/d1/pfahler/arxiv_processed/subset_ml/train/mathml/\
+import tqdm
+EXAMPLE = "/data/s1/pfahler/arxiv_processed/subset_ml/train/mathml/\
 1901.02705/Model-Predictive Policy Learning with Uncertainty Regularization_9.kmathml"
 
 CONTENT_SYMBOLS = 192
 ATTRIBUTE_SYMBOLS = 32
 TAG_SYMBOLS = 32
+VOCAB_SYMBOLS = 512
 
 DIM = CONTENT_SYMBOLS + ATTRIBUTE_SYMBOLS + TAG_SYMBOLS
 MAX_POS = 256
@@ -59,37 +61,48 @@ def generate_skeleton(tree, edges=None, start=0):
     tree["_id"] = start
     newstart = start + 1
     if "children" in tree:
-        edges.append((start, start, 0))
+        # edges.append((start, start, 0))
         for i, child in enumerate(tree["children"]):
-            edges.append((start, newstart, 1))
-            edges.append((newstart, start, min(i+2, MAX_POS - 1)))
+            edges.append((start, newstart, 1)) # topwdown
+            edges.append((newstart, start, 0)) # bottomup
             newstart = generate_skeleton(child, edges=edges, start=newstart)
     return newstart
 
-def fill_skeleton(tree, X, alphabet):
+def fill_skeleton(tree, X, pos, alphabet):
     """Convert a tree and fills a torch tensor with features derived from the tree"""
-    content, attributes, types = alphabet
+    vocab = alphabet
     i = tree["_id"]
-    if tree["type"] in types:
-        X[i, types[tree["type"]]] = 1.0
+    
+    representation_string, without_attr = build_representation_string(tree)
+    if representation_string in vocab:
+        X[i, 0] = vocab[representation_string]
+    elif without_attr in vocab:
+        X[i, 0] = vocab[without_attr]
     else:
-        X[i, TAG_SYMBOLS-1] = 1.0
-    # print(tree.keys())
-    if "content" in tree:
-        for char in tree["content"]:
-            if char in content:
-                X[i, TAG_SYMBOLS + content[char]] += 1
-            else:
-                X[i, TAG_SYMBOLS + CONTENT_SYMBOLS -1] += 1
-    if "attributes" in tree:
-        for attrib in tree["attributes"]:
-            if attrib in attributes:
-                X[i, TAG_SYMBOLS + CONTENT_SYMBOLS + attributes[attrib]] += 1
-            else:
-                X[i, DIM -1] += 1
+        X[i, 0] = VOCAB_SYMBOLS - 1
     if "children" in tree:
-        for child in tree["children"]:
-            fill_skeleton(child, X, alphabet)
+        for i, child in enumerate(tree["children"]):
+            pos[child["_id"]] = min(i, MAX_POS - 1)
+            fill_skeleton(child, X, pos, alphabet)
+
+def build_representation_string(obj):
+    representation = ""
+    if "type" in obj:
+        representation+=obj["type"]+"_"
+    if "content" in obj:
+        for char in obj["content"]:
+            representation += char
+        representation += "_"
+    without_attr = representation
+    if "attributes" in obj:
+        for attrib in sorted(obj["attributes"]):
+            if attrib.endswith("em"):
+                #parse and round
+                attrib = attrib.split("=")
+                attrib[-1] = str(round(float(attrib[-1][:-2]), 1)) + "em"
+                attrib = "=".join(attrib)
+            representation+=attrib+","
+    return representation, without_attr
 
 def load_pytorch(path, alphabet, string=None):
     """
@@ -102,8 +115,9 @@ def load_pytorch(path, alphabet, string=None):
     tree = load_dict(path, string)
     # print(json.dumps(tree, indent=4))
     num_nodes, e = generate_skeleton(tree)
-    X = torch.zeros((num_nodes, DIM), dtype=torch.float32)
-    fill_skeleton(tree, X, alphabet)
+    X = torch.zeros((num_nodes, 1), dtype=torch.int64)
+    pos = torch.zeros((num_nodes, 1), dtype=torch.int64)
+    fill_skeleton(tree, X, pos, alphabet)
     edge_features = torch.zeros((len(e), 1), dtype=torch.int64)
     edges = torch.zeros((2, len(e)), dtype=torch.int64)
     for k, (i, j, y) in enumerate(e):
@@ -116,72 +130,52 @@ def load_pytorch(path, alphabet, string=None):
     # 	edges[1, k + len(e)] = k
     # 	edge_features[k + len(e), 0] = 0
 
-    return Data(x=X, edge_index=edges, edge_attr=edge_features)
+    return Data(x=X, edge_index=edges, edge_attr=edge_features, pos=pos)
     #flatten into nodes, and edges
 
-def update_alphabet(obj, content, attributes, types):
+def update_alphabet(obj, vocab):
     """Grow the alphabet by the symbols in the tree 'obj'"""
-    if "type" in obj:
-        if obj["type"] not in types:
-            types[obj["type"]] = 0
-        types[obj["type"]] += 1
-    if "content" in obj:
-        for char in obj["content"]:
-            if char not in content:
-                content[char] = 0
-            content[char] += 1
-    if "attributes" in obj:
-        for attrib in obj["attributes"]:
-            if attrib.endswith("em"):
-                #parse and round
-                attrib = attrib.split("=")
-                attrib[-1] = str(round(float(attrib[-1][:-2]), 1)) + "em"
-                attrib = "=".join(attrib)
-            if attrib not in attributes:
-                attributes[attrib] = 0
-            attributes[attrib] += 1
+    representation, _ = build_representation_string(obj)
+    if representation not in vocab:
+        vocab[representation] = 0
+    vocab[representation] += 1
     if "children" in obj:
         for child in obj["children"]:
-            update_alphabet(child, content, attributes, types)
+            update_alphabet(child, vocab)
 
 
 def build_alphabet(path):
     """Build the alphabet based on all '*.kmathml' files in @path"""
     import os
-    content = {}
-    attributes = {}
-    types = {}
-    for p in os.listdir(path):
+    vocab = {}
+    for p in tqdm.tqdm(os.listdir(path)):
         if not os.path.isdir(os.path.join(path, p)):
             continue
         for f in os.listdir(os.path.join(path, p)):
             if f.endswith(".kmathml"):
                 try:
                     obj = load_dict(os.path.join(path, p, f))
-                    update_alphabet(obj, content, attributes, types)
+                    update_alphabet(obj, vocab)
                 except Exception as e:
                     print(e)
-    print(sorted(content.items(), key=lambda kv: kv[1]))
+    print(sorted(vocab.items(), key=lambda kv: kv[1]))
     print()
-    print(sorted(attributes.items(), key=lambda kv: kv[1]))
-    print()
-    print(sorted(types.items(), key=lambda kv: kv[1]))
-    return content, attributes, types
+    return vocab
 
-def load_alphabet(path=None, content=None, attributes=None, types=None):
+def load_alphabet(path=None, vocab=None):
     """Loads and prunes an alphabet either from pickle (@path) or from count dictionaries."""
     if path is not None:
-        content, attributes, types = pickle.load(open(path, "rb"))
-    content = {x:i for i, (x, y) in enumerate(sorted(content.items(), key=lambda kv: kv[1])[-(CONTENT_SYMBOLS-1):])}
-    attributes = {x:i for i, (x, y) in enumerate(sorted(attributes.items(), key=lambda kv: kv[1])[-(ATTRIBUTE_SYMBOLS-1):])}
-    types = {x:i for i, (x, y) in enumerate(sorted(types.items(), key=lambda kv: kv[1])[-(TAG_SYMBOLS-1):])}
-    return content, attributes, types
+        vocab = pickle.load(open(path, "rb"))
+    vocab = {x:i for i, (x, y) in enumerate(sorted(vocab.items(), key=lambda kv: kv[1])[-(VOCAB_SYMBOLS-1):])}
+    # attributes = {x:i for i, (x, y) in enumerate(sorted(attributes.items(), key=lambda kv: kv[1])[-(ATTRIBUTE_SYMBOLS-1):])}
+    # types = {x:i for i, (x, y) in enumerate(sorted(types.items(), key=lambda kv: kv[1])[-(TAG_SYMBOLS-1):])}
+    return vocab
 
 if __name__ == "__main__":
-    import sys, os
+    import sys
+    import os
     PATH = sys.argv[1]
     pickle.dump(
         build_alphabet(os.path.join(PATH, "mathml/")),
-        open(os.path.join(PATH, "alphabet.pickle"), "wb")
+        open(os.path.join(PATH, "vocab.pickle"), "wb")
     )
-
