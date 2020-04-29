@@ -1,54 +1,85 @@
 from annoy import AnnoyIndex
 import torch
 import gzip
+import zipfile
 import pickle
+import json
 import os
 import re
 import tqdm
 import sys
+from functools import partial
+from  multiprocessing.pool import Pool
 from torch_geometric.data import DataLoader
-import ml.graph_cnn
-def main(checkpoint):
-    run = re.search("models/([0-9]+)/", checkpoint).group(1)
+from arxiv_learning.nn.graph_cnn import GraphCNN
+from arxiv_learning.data.load_mathml import load_pytorch, load_alphabet
+
+def load_json(archive, file):
+    try:
+        return json.load(archive.open(file, "r"))
+    except json.decoder.JSONDecodeError as e:
+        return None
+
+def main(checkpoint, data):
+    run = re.search("checkpoints/([0-9]+)/", checkpoint).group(1)
     print(run)
     
-    model = ml.graph_cnn.GraphCNN()
+    model = GraphCNN()
     model.load_state_dict_from_path(checkpoint)
     model = model.cuda().eval()
-    files = [x for x in os.listdir("/data/d1/pfahler/arxiv_processed") if x.startswith("train_mathmls")]
+    
+    alphabet = load_alphabet("vocab.pickle")
+
+    data = zipfile.ZipFile(data, "r")
 
     # files = files[:1]
 
     index = AnnoyIndex(64, 'angular')
-    index.on_disk_build("/data/d1/pfahler/arxiv_processed/deep_{}.ann".format(run))
+    index.on_disk_build("/data/s1/pfahler/arxiv_processed/deep_{}.ann".format(run))
     all_keys = []
     i = 0
-    for f in files:
-        num = re.match("train_mathmls([0-9]+).pickle.gz", f).group(1)
-        keys = open(os.path.join("/data/d1/pfahler/arxiv_processed",
-                                 "train_keys_{}.csv".format(num)), "r").read().split("\n")
-        all_keys += keys
-        print("loading", f)
-        X = pickle.load(gzip.open(os.path.join("/data/d1/pfahler/arxiv_processed", f), "rb"))
-        loader = DataLoader(X, batch_size=128)
-        emb = []
-        with torch.no_grad():
-            for d in tqdm.tqdm(loader):
-                d.x = d.x.type(torch.FloatTensor)
-                d.edge_index = d.edge_index.type(torch.LongTensor)
-                d.edge_attr = d.edge_attr.type(torch.LongTensor)
-                d = d.to("cuda")
-                ee = model(d).detach().cpu().numpy()
-                for e in ee:
-                    index.add_item(i, e)
-                    i+=1
+    with tqdm.tqdm(total=len(data.namelist()), smoothing=0.1) as pbar:
+        with Pool(20) as p:
+            for f in data.namelist():
+                pbar.update(1)
+                if not f.endswith(".json"):
+                    continue
+                paper = load_json(data, f)
+                if paper is None:
+                    print("couldnt load", f)
+                    continue
+                mathmls = sum([
+                    [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]],
+                    []
+                )
+                nos = sum([
+                    [eq["no"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]],
+                    []
+                )
 
-    print("Building Index")
-    index.build(16)
-    print("Saving Keys")
-    with open("/data/d1/pfahler/arxiv_processed/all_keys_{}.csv".format(run), "w") as f:
-        f.write("\n".join(all_keys))
+                X = p.map(partial(load_pytorch, alphabet=alphabet), mathmls)
+                # Filter where loading failed
+                keys = [(os.path.basename(f), no) for no, mml in zip(nos, X) if mml is not None]
+                X = [mml for mml in X if mml is not None]
+
+                all_keys += keys
+
+                loader = DataLoader(X, batch_size=128, shuffle=False)
+                with torch.no_grad():
+                    for d in loader:
+                        d = d.to("cuda")
+                        batch = model.mean(d).detach().cpu().numpy()
+                        for e in batch:
+                            index.add_item(i, e)
+                            i += 1
+                pbar.set_description("#Embeddings: {}".format(i))
+
+        print("Building Index")
+        index.build(16)
+        print("Saving Keys")
+        with open("/data/s1/pfahler/arxiv_processed/ids_{}.pickle".format(run), "wb") as f:
+            pickle.dump(all_keys, f)
 
 if __name__ == "__main__":
-    main(checkpoint=sys.argv[1])
+    main(checkpoint=sys.argv[1], data=sys.argv[2])
     

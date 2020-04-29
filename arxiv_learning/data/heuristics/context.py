@@ -57,9 +57,9 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
             if z is None:
                 continue
             # print(z)
-            x = load_mathml.load_pytorch(None, self.alphabet, string=x)
-            y = load_mathml.load_pytorch(None, self.alphabet, string=y)
-            z = load_mathml.load_pytorch(None, self.alphabet, string=z)
+            x = load_mathml.load_pytorch(x, self.alphabet)
+            y = load_mathml.load_pytorch(y, self.alphabet)
+            z = load_mathml.load_pytorch(z, self.alphabet)
             yield x
             yield y
             yield z
@@ -95,9 +95,9 @@ class SameSection(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.util
             if z is None:
                 continue
             # print(z)
-            x = load_mathml.load_pytorch(None, self.alphabet, string=x)
-            y = load_mathml.load_pytorch(None, self.alphabet, string=y)
-            z = load_mathml.load_pytorch(None, self.alphabet, string=z)
+            x = load_mathml.load_pytorch(x, self.alphabet)
+            y = load_mathml.load_pytorch(y, self.alphabet)
+            z = load_mathml.load_pytorch(z, self.alphabet)
             yield x
             yield y
             yield z

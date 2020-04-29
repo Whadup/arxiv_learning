@@ -104,7 +104,7 @@ def build_representation_string(obj):
             representation+=attrib+","
     return representation, without_attr
 
-def load_pytorch(path, alphabet, string=None):
+def load_pytorch(string, alphabet):
     """
     Loads a XML file and returns a pytorch representation consisting
     of node features 'X', edges 'E' and edge-features 'edge_features'.
@@ -112,7 +112,7 @@ def load_pytorch(path, alphabet, string=None):
     have to be supplied.
     """
     from torch_geometric.data import Data
-    tree = load_dict(path, string)
+    tree = load_dict(None, string)
     # print(json.dumps(tree, indent=4))
     num_nodes, e = generate_skeleton(tree)
     X = torch.zeros((num_nodes, 1), dtype=torch.int64)
