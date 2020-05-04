@@ -1,11 +1,14 @@
 import datetime
 import torch
 import torch.optim as optim
+from torch_geometric.nn import GatedGraphConv
 import tqdm
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from arxiv_learning.data.dataloader import RayManager
 import arxiv_learning.data.heuristics.json_dataset
+import arxiv_learning.data.heuristics.equations
+import arxiv_learning.data.heuristics.context
 from arxiv_learning.nn.graph_cnn import GraphCNN
 import arxiv_learning.nn.loss as losses
 from arxiv_learning.nn.scheduler import WarmupLinearSchedule
@@ -17,19 +20,36 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
     train a model
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = GraphCNN() #layer=GatedGraphConv, args=(3,))
+    net = GraphCNN(layer=GatedGraphConv, args=(3,))
     criterion = losses.HistogramLoss(weighted=False).to(device)
     # torch.set_default_dtype(torch.float16)
     net = net.to(device)
-    trainloader = RayManager(total=500, blowout=16)
+    trainloader = RayManager(total=10000, blowout=20,
+        custom_heuristics={
+            "equalities": {
+                "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
+                "head": None
+            },
+            # "same_paper": {
+            #     "data_set": arxiv_learning.data.heuristics.context.SamePaper,
+            #     "head": None
+            # }
+        }
+    )
     # testloader = ml.dataloader.RayManager(total=500, blowout=16, test=True)
-    testloader = RayManager(
+    testloader = RayManager(test=True, total=100, blowout=20, custom_heuristics=
+        {
+            "equalities": {
+                "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
+                "head": None
+            }
+        },)
         # custom_heuristics={
         #  "json_heuristic": {
         #      "data_set" : arxiv_learning.data.heuristics.json_dataset.JsonDataset,
         #      "head": None
         #  }}, 
-         total=1000, blowout=10, test=True)
+        # total=1000, blowout=10, test=True)
     # trainloader = ml.dataloader.data_loader(batch_size, curriculum=curriculum, graph=model == "graph")
     # testloader = ml.dataloader.data_loader(batch_size, curriculum=False, test=True, graph=model == "graph")
     loss_log_interval = 1000
@@ -106,7 +126,7 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
                             sacred_experiment.log_scalar("training.loss", running_loss / example_cnt)
                             sacred_experiment.log_scalar("training.accuracy", running_accuracy/example_cnt)
                             sacred_experiment.log_scalar("training.multitask", multitask_loss/example_cnt)
-                        print()
+                        # print()
                         # ml.histogram.print_histogram(dist_sim, compute_min=-1, compute_max=1)
                         # ml.histogram.print_histogram(dist_dissim2.view(-1), compute_min=-1, compute_max=1)
             if loader is testloader:

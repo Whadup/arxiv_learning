@@ -21,14 +21,13 @@ def load_json(archive, file):
         return None
 
 def sample_equation(paper, size=None):
-    all_eqs = sum([
-        [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
-        , [])
-    if all_eqs:
-        try:
-            return np.random.choice(all_eqs, size=size, replace=False)
-        except:
-            return None
+    try:
+        all_eqs = sum([
+            [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
+            , [])
+        return np.random.choice(all_eqs, size=size, replace=False)
+    except:
+        return None
     return None
 
 @ray.remote

@@ -39,7 +39,7 @@ class GraphCNN(torch.nn.Module):
         data = inp[0]
         inp, edge_index, edge_attr, pos = data.x, data.edge_index, data.edge_attr, data.pos
         # print(x.shape)
-        if self.training:
+        if  self.training:
             mask = torch.rand((inp.shape[0], 1)) < 0.15
             unk = torch.ones(1, dtype=torch.int64) * (VOCAB_SYMBOLS - 1)
             if inp.is_cuda:
@@ -113,8 +113,8 @@ class GraphCNN(torch.nn.Module):
         dist_dissim2 = torch.bmm(out2.view(-1, 1, self.output_dim),
                                 out3.view(-1, self.output_dim, 1)).view(-1)
         if self.training:
-            d = torch.matmul(out1, out3.transpose(0,1))#.mean(dim=1)
-            dist_dissim = d
+            # d = torch.matmul(out1, out3.transpose(0,1))#.mean(dim=1)
+            # dist_dissim = d
             return dist_sim, dist_dissim, dist_dissim2, loss
         return dist_sim, dist_dissim, dist_dissim2
 

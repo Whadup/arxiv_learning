@@ -14,7 +14,8 @@ GZIP = False
 
 class Heuristic(object):
     def __init__(self, test=False):
-        self.basefile = os.path.abspath("subset_ml_train.zip")
+        # self.basefile = os.path.abspath("subset_ml_train.zip")
+        self.basefile = "/data/s1/pfahler/arxiv_processed/json_db.zip"
         self.alphabet = load_mathml.load_alphabet(os.path.abspath(
             os.path.join(os.path.split(self.basefile)[0], "vocab.pickle")))
         if test and "train" in self.basefile:
@@ -33,6 +34,9 @@ class Heuristic(object):
                 self.data = list([x for i, x in enumerate(self.data) if not i % 5])
             else:
                 self.data = list([x for i, x in enumerate(self.data) if i % 5])
+        if len(self.data) > 100000:
+            self.data = npr.choice(self.data, size=100000, replace=False)
+        # print(npr.randint(1000))
         self.item = None
         self.setup_iterator()
 
