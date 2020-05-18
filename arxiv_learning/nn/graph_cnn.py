@@ -113,8 +113,8 @@ class GraphCNN(torch.nn.Module):
         dist_dissim2 = torch.bmm(out2.view(-1, 1, self.output_dim),
                                 out3.view(-1, self.output_dim, 1)).view(-1)
         if self.training:
-            # d = torch.matmul(out1, out3.transpose(0,1))#.mean(dim=1)
-            # dist_dissim = d
+            d = torch.matmul(out1, out3.transpose(0,1))#.mean(dim=1)
+            dist_dissim = d
             return dist_sim, dist_dissim, dist_dissim2, loss
         return dist_sim, dist_dissim, dist_dissim2
 

@@ -140,16 +140,21 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                     x = load_mathml.load_pytorch(part_a, self.alphabet)
                     y = load_mathml.load_pytorch(part_b, self.alphabet)
                     z = load_mathml.load_pytorch(part_c, self.alphabet)
+                    x.y = torch.LongTensor([[0]])
+                    y.y = torch.LongTensor([[0]])
+                    z.y = torch.LongTensor([[1]])
                     yield x
                     yield y
                     yield z
                     # self.item = (x,y,z)
                     # return self.item
                 except Exception as identifier:
-                    print(type(identifier), identifier)
+                    pass
+                    # print(type(identifier), identifier)
                     # raise identifier
             except Exception as identifier:
-                print(type(identifier), identifier)
+                pass
+                # print(type(identifier), identifier)
                 # print(eq)
                 # print(other_eq)
                 # raise identifier

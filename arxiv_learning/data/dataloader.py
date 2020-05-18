@@ -8,18 +8,16 @@ SAME_PAPER = 2
 ALONG_CITATION = 3
 DIFFERENT_PAPER = 4
 
-def load_xml(archive, alphabet, file):
-    xml = archive.open(file, "r").read()
-    if not xml:
-        raise FileNotFoundError(file)
-    return arxiv_learning.data.load_mathml.load_pytorch(None, alphabet, string=xml)
+# def load_xml(archive, alphabet, file):
+#     xml = archive.open(file, "r").read()
+#     if not xml:
+#         raise FileNotFoundError(file)
+#     return arxiv_learning.data.load_mathml.load_pytorch(None, alphabet, string=xml)
 
 
 class RayManager():
 
     def __init__(self, custom_heuristics=None, total=100, blowout=1, test=False):
-        
-        
         # ray.init(address="129.217.30.174:6379")
         ray.init(address="auto", ignore_reinit_error=True)
         # ray.init(address='auto', redis_password='5241590000000000')
@@ -47,11 +45,11 @@ class RayManager():
                 # },
             }
         self.heuristics = {
-            "{}_{}".format(k, i) : {
+            "{}/{}".format(k, i) : {
                 "data_set" : v["data_set"].remote(test=self.test),
                 "head" : v["head"]
             }
-            for i in range(self.blowout) for k,v in self.heuristics.items()
+            for i in range(self.blowout) for k, v in self.heuristics.items()
         }
         self.round = []
         self.robin = []
@@ -80,8 +78,8 @@ class RayManager():
                     with gzip.open(io_buffer, "rb") as gzip_obj:
                         buffer = pickle.load(gzip_obj)
                         for x in buffer:
-                            counter +=1
-                            yield dataset, x
+                            counter += 1
+                            yield dataset.split("/")[0], x
                             if counter == self.total:
                                 break
                 else:
@@ -90,7 +88,7 @@ class RayManager():
                 x = ray.get(data)
                 if x is not None:
                     counter += 1
-                    yield dataset, x
+                    yield dataset.split("/")[0], x
             del self.robin[data]
             if x is not None:
                 new_item = self.heuristics[dataset]["data_set"].generate.remote()

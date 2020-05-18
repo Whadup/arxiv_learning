@@ -20,35 +20,31 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
     train a model
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net = GraphCNN(layer=GatedGraphConv, args=(3,))
+    net = GraphCNN()
     criterion = losses.HistogramLoss(weighted=False).to(device)
     # torch.set_default_dtype(torch.float16)
     net = net.to(device)
-    trainloader = RayManager(total=10000, blowout=20,
-        custom_heuristics={
-            "equalities": {
-                "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
+    heuristics = {
+            "same_paper": {
+                "data_set": arxiv_learning.data.heuristics.context.SamePaper,
                 "head": None
             },
-            # "same_paper": {
-            #     "data_set": arxiv_learning.data.heuristics.context.SamePaper,
-            #     "head": None
-            # }
-        }
-    )
-    # testloader = ml.dataloader.RayManager(total=500, blowout=16, test=True)
-    testloader = RayManager(test=True, total=100, blowout=20, custom_heuristics=
-        {
-            "equalities": {
-                "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
+            "same_section": {
+                "data_set": arxiv_learning.data.heuristics.context.SameSection,
                 "head": None
-            }
-        },)
+            },
+        }
+    trainloader = RayManager(total=1000, blowout=20, custom_heuristics=heuristics)
+    # testloader = ml.dataloader.RayManager(total=500, blowout=16, test=True)
+    testloader = RayManager(test=True, total=100, blowout=10, custom_heuristics=heuristics)
+        # {
+        #     "json_heuristic": {
+        #         "data_set" : arxiv_learning.data.heuristics.json_dataset.JsonDataset,
+        #         "head": None
+        #     }
+        # })
         # custom_heuristics={
-        #  "json_heuristic": {
-        #      "data_set" : arxiv_learning.data.heuristics.json_dataset.JsonDataset,
-        #      "head": None
-        #  }}, 
+        #  
         # total=1000, blowout=10, test=True)
     # trainloader = ml.dataloader.data_loader(batch_size, curriculum=curriculum, graph=model == "graph")
     # testloader = ml.dataloader.data_loader(batch_size, curriculum=False, test=True, graph=model == "graph")
