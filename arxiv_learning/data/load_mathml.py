@@ -10,7 +10,7 @@ EXAMPLE = "/data/s1/pfahler/arxiv_processed/subset_ml/train/mathml/\
 CONTENT_SYMBOLS = 192
 ATTRIBUTE_SYMBOLS = 32
 TAG_SYMBOLS = 32
-VOCAB_SYMBOLS = 512
+VOCAB_SYMBOLS = 1024
 
 DIM = CONTENT_SYMBOLS + ATTRIBUTE_SYMBOLS + TAG_SYMBOLS
 MAX_POS = 256
@@ -131,6 +131,7 @@ def load_pytorch(string, alphabet):
     # 	edge_features[k + len(e), 0] = 0
 
     return Data(x=X, edge_index=edges, edge_attr=edge_features, pos=pos)
+    # return Data(x=X, edge_index=edges, edge_attr=edge_features, pos=pos)
     #flatten into nodes, and edges
 
 def update_alphabet(obj, vocab):
@@ -146,18 +147,29 @@ def update_alphabet(obj, vocab):
 
 def build_alphabet(path):
     """Build the alphabet based on all '*.kmathml' files in @path"""
-    import os
+    import os, zipfile
+    import json
     vocab = {}
-    for p in tqdm.tqdm(os.listdir(path)):
-        if not os.path.isdir(os.path.join(path, p)):
+    archive = zipfile.ZipFile(path, "r")
+    data = archive.namelist()
+    for p in tqdm.tqdm(data):
+        if not p.endswith(".json"):
             continue
-        for f in os.listdir(os.path.join(path, p)):
-            if f.endswith(".kmathml"):
-                try:
-                    obj = load_dict(os.path.join(path, p, f))
-                    update_alphabet(obj, vocab)
-                except Exception as e:
-                    print(e)
+        try:
+            paper = json.load(archive.open(p, "r"))
+            all_eqs = sum([
+                [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
+                , [])
+        except json.decoder.JSONDecodeError as e:
+            continue
+        except:
+            continue
+        for eq in all_eqs:
+            try:
+                obj = load_dict(None, string=eq)
+                update_alphabet(obj, vocab)
+            except Exception as e:
+                print(e)
     print(sorted(vocab.items(), key=lambda kv: kv[1]))
     print()
     return vocab
@@ -176,6 +188,6 @@ if __name__ == "__main__":
     import os
     PATH = sys.argv[1]
     pickle.dump(
-        build_alphabet(os.path.join(PATH, "mathml/")),
-        open(os.path.join(PATH, "vocab.pickle"), "wb")
+        build_alphabet(PATH),
+        open(os.path.join(os.path.dirname(PATH), "vocab.pickle"), "wb")
     )

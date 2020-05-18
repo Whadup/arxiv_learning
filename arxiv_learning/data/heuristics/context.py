@@ -8,11 +8,6 @@ from copy import deepcopy
 import arxiv_learning.data.heuristics.heuristic
 import arxiv_learning.data.load_mathml as load_mathml
 
-def load_xml(archive, alphabet, file):
-    xml = archive.open(file, "r").read()
-    if not xml:
-        raise FileNotFoundError(file)
-    return load_mathml.load_pytorch(None, alphabet, string=xml)
 
 def load_json(archive, file):
     try:
@@ -20,11 +15,14 @@ def load_json(archive, file):
     except json.decoder.JSONDecodeError as e:
         return None
 
-def sample_equation(paper, size=None):
+def sample_equation(paper, size=None, cache=None):
     try:
-        all_eqs = sum([
-            [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
-            , [])
+        if cache:
+            all_eqs = cache
+        else:       
+            all_eqs = sum([
+                [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
+                , [])
         return np.random.choice(all_eqs, size=size, replace=False)
     except:
         return None
@@ -35,14 +33,20 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
     def __init__(self, test=False):
         super().__init__(test=test)
 
-
     def __iter__(self):
         while True:
             i = np.random.choice(len(self.data))
+            # if self.data[i] not in self.cache:
+            #     paper = load_json(self.archive, self.data[i])
+            #     if paper is None:
+            #         continue
+            #     self.cache[self.data[i]] = sum([
+            #         [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
+            #         , [])
             paper = load_json(self.archive, self.data[i])
             if paper is None:
                 continue
-            pair = sample_equation(paper, size=2)
+            pair = sample_equation(paper, size=2) #, cache=self.cache[self.data[i]])
             if pair is None:
                 # del self.papers[i]
                 continue
@@ -52,13 +56,23 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
             other_paper = load_json(self.archive, self.data[j])
             if other_paper is None:
                 continue
-            z = sample_equation(other_paper)
+            # if self.data[j] not in self.cache:
+            #     other_paper = load_json(self.archive, self.data[j])
+            #     if other_paper is None:
+            #         continue
+            #     self.cache[self.data[j]] = sum([
+            #         [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in other_paper["sections"]]
+            #         , [])
+            z = sample_equation(other_paper) #, cache=self.cache[self.data[j]])
             if z is None:
                 continue
             # print(z)
-            x = load_mathml.load_pytorch(x, self.alphabet)
-            y = load_mathml.load_pytorch(y, self.alphabet)
-            z = load_mathml.load_pytorch(z, self.alphabet)
+            try:
+                x = load_mathml.load_pytorch(x, self.alphabet)
+                y = load_mathml.load_pytorch(y, self.alphabet)
+                z = load_mathml.load_pytorch(z, self.alphabet)
+            except:
+                continue
             yield x
             yield y
             yield z
@@ -94,9 +108,12 @@ class SameSection(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.util
             if z is None:
                 continue
             # print(z)
-            x = load_mathml.load_pytorch(x, self.alphabet)
-            y = load_mathml.load_pytorch(y, self.alphabet)
-            z = load_mathml.load_pytorch(z, self.alphabet)
+            try:
+                x = load_mathml.load_pytorch(x, self.alphabet)
+                y = load_mathml.load_pytorch(y, self.alphabet)
+                z = load_mathml.load_pytorch(z, self.alphabet)
+            except:
+                continue
             yield x
             yield y
             yield z
