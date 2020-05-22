@@ -8,6 +8,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from arxiv_learning.data.dataloader import RayManager
 import arxiv_learning.data.heuristics.json_dataset
+import arxiv_learning.jobs.gitstatus import get_repository_status
 import arxiv_learning.data.heuristics.equations
 import arxiv_learning.data.heuristics.context
 import arxiv_learning.data.heuristics.heuristic
@@ -43,6 +44,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, sac
     trainloader = RayManager(total=1000, blowout=20, custom_heuristics=heuristics)
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
+    sacred_experiment.info["gitstatus"] = get_repository_status()
     sacred_experiment.info["data_file"] = basefile
     sacred_experiment.info["vocab_file"] = vocab_file
     sacred_experiment.info["vocab_dim"] = VOCAB_SYMBOLS
