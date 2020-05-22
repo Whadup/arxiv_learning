@@ -91,7 +91,7 @@ def process_epochs(run):
     global VOCAB_SYMBOLS
     import os
     print(run)
-    info = json.load(open(os.path.join(run,"info.json"), "r"))
+    info = json.load(open(os.path.join(run, "info.json"), "r"))
     VOCAB_SYMBOLS = info.get("vocab_dim", VOCAB_SYMBOLS)
     vocab_file = info["vocab_file"]
     for filename in sorted_nicely(os.listdir(run))[::-1]:
