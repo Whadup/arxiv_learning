@@ -1,4 +1,5 @@
 import datetime
+import os
 import torch
 import torch.optim as optim
 from torch_geometric.nn import GatedGraphConv
@@ -9,19 +10,24 @@ from arxiv_learning.data.dataloader import RayManager
 import arxiv_learning.data.heuristics.json_dataset
 import arxiv_learning.data.heuristics.equations
 import arxiv_learning.data.heuristics.context
+import arxiv_learning.data.heuristics.heuristic
+from arxiv_learning.data.load_mathml import VOCAB_SYMBOLS
 from arxiv_learning.nn.graph_cnn import GraphCNN
 import arxiv_learning.nn.loss as losses
 from arxiv_learning.nn.scheduler import WarmupLinearSchedule
+from arxiv_learning.flags import MASKED_LANGUAGE_TRAINING
+#7b359659bee4917525cca7909d301cbd20fb1e8e
 
-
-
-def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
+def train_model(batch_size, learning_rate, epochs, masked_language_training, sacred_experiment):
     """
     train a model
     """
+    global MASKED_LANGUAGE_TRAINING
+    MASKED_LANGUAGE_TRAINING = masked_language_training
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net = GraphCNN()
     criterion = losses.HistogramLoss(weighted=False).to(device)
+    # criterion = losses.triple_loss
     # torch.set_default_dtype(torch.float16)
     net = net.to(device)
     heuristics = {
@@ -35,19 +41,15 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
             },
         }
     trainloader = RayManager(total=1000, blowout=20, custom_heuristics=heuristics)
-    # testloader = ml.dataloader.RayManager(total=500, blowout=16, test=True)
+    basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
+    vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
+    sacred_experiment.info["data_file"] = basefile
+    sacred_experiment.info["vocab_file"] = vocab_file
+    sacred_experiment.info["vocab_dim"] = VOCAB_SYMBOLS
+    sacred_experiment.add_artifact(vocab_file)
+
     testloader = RayManager(test=True, total=100, blowout=10, custom_heuristics=heuristics)
-        # {
-        #     "json_heuristic": {
-        #         "data_set" : arxiv_learning.data.heuristics.json_dataset.JsonDataset,
-        #         "head": None
-        #     }
-        # })
-        # custom_heuristics={
-        #  
-        # total=1000, blowout=10, test=True)
-    # trainloader = ml.dataloader.data_loader(batch_size, curriculum=curriculum, graph=model == "graph")
-    # testloader = ml.dataloader.data_loader(batch_size, curriculum=False, test=True, graph=model == "graph")
+
     loss_log_interval = 1000
 
     # criterion = ml.loss.triple_loss
@@ -70,18 +72,18 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
             smooth_running_loss = 0.0
             multitask_loss = 0.0
             example_cnt = 0
+            print("MASKED", MASKED_LANGUAGE_TRAINING)
             with tqdm.tqdm(total=loader.total*128, ncols=140, smoothing=0.1) as pbar:
                 for i, data in enumerate(loader):
-                    if model == "graph":
-                        dataset, data = data
-                        data = data.to(device)
-                        # print(data)
-                        if loader == trainloader:
-                            dist_sim, dist_dissim1, dist_dissim2, mask_loss = net.forward3(data)
-                        else:
-                            dist_sim, dist_dissim1, dist_dissim2 = net.forward3(data)
+                    dataset, data = data
+                    data = data.to(device)
+                    # print(data)
+                    if loader == trainloader:
+                        dist_sim, dist_dissim1, dist_dissim2, mask_loss = net.forward3(data)
+                    else:
+                        dist_sim, dist_dissim1, dist_dissim2 = net.forward3(data)
 
-                    loss = criterion(dist_sim, dist_dissim1.view(-1), dist_dissim2, torch.ones(1), torch.zeros(1))
+                    loss = criterion(dist_sim, dist_dissim1.view(-1), dist_dissim2, torch.ones(1).cuda(), torch.zeros(1).cuda())
                     if len(dist_dissim1.shape) > 1:
                         dist_dissim2 = dist_dissim1
                         dist_dissim1 = dist_dissim1.max(dim=1)[0]
@@ -98,7 +100,9 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
                         smooth_running_loss * 0.99 + loss.item() * 0.01
                     example_cnt += actual_batch_size
                     if loader is trainloader:
-                        loss = loss + mask_loss
+                        if MASKED_LANGUAGE_TRAINING:
+                            
+                            loss = loss + mask_loss
                         multitask_loss += loss.item()*dist_sim.shape[0]
                         loss.backward()
                         optimizer.step()
@@ -144,16 +148,17 @@ MODEL_PATH = "checkpoints/"
 SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
 
 @SACRED_EXPERIMENT.capture
-def train(batch_size, learning_rate, epochs, model, _run):
-    train_model(batch_size, learning_rate, epochs, model, SACRED_EXPERIMENT)
+def train(batch_size, learning_rate, epochs, masked_language_training, _run):
+    train_model(batch_size, learning_rate, epochs, masked_language_training, SACRED_EXPERIMENT)
     print("FINISHED RUN", _run._id)
 
 @SACRED_EXPERIMENT.config
 def hyperparamters():
     batch_size = 256
     learning_rate = 0.0001
+    # learning_rate = 0.001
     epochs = 20
-    model = "graph"
+    masked_language_training = True
 
 
 @SACRED_EXPERIMENT.automain

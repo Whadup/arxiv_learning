@@ -6,7 +6,7 @@ from torch_scatter import scatter_min, scatter_mean
 from arxiv_learning.data.load_mathml import MAX_POS, VOCAB_SYMBOLS
 from arxiv_learning.nn.positional_embeddings import init_positional_embeddings
 from arxiv_learning.nn.softnormalization import SoftNormalization
-
+from arxiv_learning.flags import MASKED_LANGUAGE_TRAINING
 class GraphCNN(torch.nn.Module):
     def __init__(self, layers=4, width=512, layer=GraphConv, args=(512,), kwargs={"aggr": "mean"}):
         super(GraphCNN, self).__init__()
@@ -40,7 +40,7 @@ class GraphCNN(torch.nn.Module):
         inp, edge_index, edge_attr, pos = data.x, data.edge_index, data.edge_attr, data.pos
         # print(x.shape)
         if  self.training:
-            mask = torch.rand((inp.shape[0], 1)) < 0.15
+            mask = torch.rand((inp.shape[0], 1)) < (0.15 if MASKED_LANGUAGE_TRAINING else 0)
             unk = torch.ones(1, dtype=torch.int64) * (VOCAB_SYMBOLS - 1)
             if inp.is_cuda:
                 mask = mask.to(data.batch.get_device())
@@ -113,7 +113,7 @@ class GraphCNN(torch.nn.Module):
         dist_dissim2 = torch.bmm(out2.view(-1, 1, self.output_dim),
                                 out3.view(-1, self.output_dim, 1)).view(-1)
         if self.training:
-            d = torch.matmul(out1, out3.transpose(0,1))#.mean(dim=1)
+            d = torch.matmul(out1, out3.transpose(0, 1))#.mean(dim=1)
             dist_dissim = d
             return dist_sim, dist_dissim, dist_dissim2, loss
         return dist_sim, dist_dissim, dist_dissim2

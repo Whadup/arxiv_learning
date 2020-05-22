@@ -97,8 +97,8 @@ def split(string=None, fail=True):
 
 @ray.remote
 class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
-    def __init__(self, test=False):
-        super().__init__(test=test)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def __iter__(self):
         while True:
