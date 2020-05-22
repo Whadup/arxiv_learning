@@ -8,7 +8,7 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from arxiv_learning.data.dataloader import RayManager
 import arxiv_learning.data.heuristics.json_dataset
-import arxiv_learning.jobs.gitstatus import get_repository_status
+from arxiv_learning.jobs.gitstatus import get_repository_status
 import arxiv_learning.data.heuristics.equations
 import arxiv_learning.data.heuristics.context
 import arxiv_learning.data.heuristics.heuristic
@@ -16,15 +16,22 @@ from arxiv_learning.data.load_mathml import VOCAB_SYMBOLS
 from arxiv_learning.nn.graph_cnn import GraphCNN
 import arxiv_learning.nn.loss as losses
 from arxiv_learning.nn.scheduler import WarmupLinearSchedule
-from arxiv_learning.flags import MASKED_LANGUAGE_TRAINING
+from arxiv_learning.flags import MASKED_LANGUAGE_TRAINING, DATA_AUGMENTATION
 #7b359659bee4917525cca7909d301cbd20fb1e8e
 
-def train_model(batch_size, learning_rate, epochs, masked_language_training, sacred_experiment):
+SACRED_EXPERIMENT = Experiment(name="train_model_{}".format(datetime.date.today().isoformat()))
+MODEL_PATH = "checkpoints/"
+SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
+
+@SACRED_EXPERIMENT.capture
+def train_model(batch_size, learning_rate, epochs, masked_language_training, data_augmentation, sacred_experiment):
     """
     train a model
     """
     global MASKED_LANGUAGE_TRAINING
+    global DATA_AUGMENTATION
     MASKED_LANGUAGE_TRAINING = masked_language_training
+    DATA_AUGMENTATION = data_augmentation
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     net = GraphCNN()
     criterion = losses.HistogramLoss(weighted=False).to(device)
@@ -44,7 +51,9 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, sac
     trainloader = RayManager(total=1000, blowout=20, custom_heuristics=heuristics)
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
-    sacred_experiment.info["gitstatus"] = get_repository_status()
+
+    
+
     sacred_experiment.info["data_file"] = basefile
     sacred_experiment.info["vocab_file"] = vocab_file
     sacred_experiment.info["vocab_dim"] = VOCAB_SYMBOLS
@@ -145,13 +154,12 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, sac
     net.to("cpu")
     net.save()
 
-SACRED_EXPERIMENT = Experiment(name="train_model_{}".format(datetime.date.today().isoformat()))
-MODEL_PATH = "checkpoints/"
-SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
+
 
 @SACRED_EXPERIMENT.capture
-def train(batch_size, learning_rate, epochs, masked_language_training, _run):
-    train_model(batch_size, learning_rate, epochs, masked_language_training, SACRED_EXPERIMENT)
+def train(batch_size, learning_rate, epochs, masked_language_training, data_augmentation, _run):
+    SACRED_EXPERIMENT.info["gitstatus"] = get_repository_status()
+    train_model(batch_size, learning_rate, epochs, masked_language_training, data_augmentation, SACRED_EXPERIMENT)
     print("FINISHED RUN", _run._id)
 
 @SACRED_EXPERIMENT.config
@@ -161,6 +169,7 @@ def hyperparamters():
     # learning_rate = 0.001
     epochs = 20
     masked_language_training = True
+    data_augmentation = True
 
 
 @SACRED_EXPERIMENT.automain

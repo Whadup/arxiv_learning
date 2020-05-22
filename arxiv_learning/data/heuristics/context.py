@@ -8,7 +8,7 @@ from copy import deepcopy
 import arxiv_learning.data.heuristics.heuristic
 import arxiv_learning.data.load_mathml as load_mathml
 from  arxiv_learning.data.augmentation import permute, prepare_permutations
-
+from arxiv_learning.flags import DATA_AUGMENTATION
 def load_json(archive, file):
     try:
         return json.load(archive.open(file, "r"))
@@ -33,8 +33,8 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
     def __init__(self, permute=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.permute = False # only permute during training
-        if permute and not self.test:
-            self.permute = permute
+        if DATA_AUGMENTATION and not self.test:
+            self.permute = True
             self.perms = prepare_permutations(self.alphabet)
 
     def __iter__(self):
@@ -93,8 +93,8 @@ class SameSection(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.util
     def __init__(self, permute=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.permute = False # only permute during training
-        if permute and not self.test:
-            self.permute = permute
+        if DATA_AUGMENTATION and not self.test:
+            self.permute = True
             self.perms = prepare_permutations(self.alphabet)
     #EXACT COPY FROM ABOVE!
     def __iter__(self):
