@@ -83,7 +83,7 @@ def sorted_nicely(l):
     import re
     """ Sort the given iterable in the way that humans # expect.""" 
     convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key = alphanum_key)
 
 # @# ex.capture
@@ -94,11 +94,14 @@ def process_epochs(run):
     info = json.load(open(os.path.join(run, "info.json"), "r"))
     VOCAB_SYMBOLS = info.get("vocab_dim", VOCAB_SYMBOLS)
     vocab_file = info["vocab_file"]
+    metrics = json.load(open(os.path.join(run, "metrics.json"), "r"))
+    test_ranking = metrics["test.accuracy"]["values"][-1]
     for filename in sorted_nicely(os.listdir(run))[::-1]:
-        print(filename)
+        # print(filename)
         if filename.endswith(".pt"):
             print("========", filename, "========")
-            eval(pretrained_weights=os.path.join(run, filename), vocab_file=vocab_file)
+            for x in eval(pretrained_weights=os.path.join(run, filename), vocab_file=vocab_file):
+                yield (*x, test_ranking)
             print("")
             break
 
@@ -143,12 +146,24 @@ def eval(pretrained_weights, vocab_file):
     pairs_loss = 0.5 * (pairs_pos_loss + pairs_neg_loss)
     print("pairs_loss",pairs_loss,sep="\t")
     # ex.log_scalar("pairs_loss",pairs_loss)
+    yield (acc1, 1.0 - discrete_triples_loss)
 
 #@ex.automain
 def main():
     import sys
-    process_epochs(sys.argv[1])
+    results = []
+    for checkpoint in sys.argv[1:]:
+        for res in process_epochs(checkpoint):
+            results.append(res)
+    import numpy as np
+    data = np.array(results)
+    print(data)
+    print(data.mean(axis=0))
+    print(data.std(axis=0))
 
 
 if __name__ == "__main__":
     main()
+    #0.8223 +- 0.02     0.8361 +- 0.005 basis
+    #0.8031 +- 0.02     0.8323 +- 0.012 no lm
+    #0.8191 +- 0.02     0-8355 +- 0.006 no augmentation
