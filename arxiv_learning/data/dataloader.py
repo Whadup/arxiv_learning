@@ -8,11 +8,11 @@ SAME_PAPER = 2
 ALONG_CITATION = 3
 DIFFERENT_PAPER = 4
 
-def load_xml(archive, alphabet, file):
-    xml = archive.open(file, "r").read()
-    if not xml:
-        raise FileNotFoundError(file)
-    return arxiv_learning.data.load_mathml.load_pytorch(None, alphabet, string=xml)
+# def load_xml(archive, alphabet, file):
+#     xml = archive.open(file, "r").read()
+#     if not xml:
+#         raise FileNotFoundError(file)
+#     return arxiv_learning.data.load_mathml.load_pytorch(None, alphabet, string=xml)
 
 
 class RayManager():

@@ -7,8 +7,8 @@ from random import shuffle, seed, randint
 from copy import deepcopy
 import arxiv_learning.data.heuristics.heuristic
 import arxiv_learning.data.load_mathml as load_mathml
-
-
+from  arxiv_learning.data.augmentation import permute, prepare_permutations
+from arxiv_learning.flags import DATA_AUGMENTATION
 def load_json(archive, file):
     try:
         return json.load(archive.open(file, "r"))
@@ -30,8 +30,12 @@ def sample_equation(paper, size=None, cache=None):
 
 @ray.remote
 class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
-    def __init__(self, test=False):
-        super().__init__(test=test)
+    def __init__(self, permute=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.permute = False # only permute during training
+        if DATA_AUGMENTATION and not self.test:
+            self.permute = True
+            self.perms = prepare_permutations(self.alphabet)
 
     def __iter__(self):
         while True:
@@ -73,14 +77,25 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
                 z = load_mathml.load_pytorch(z, self.alphabet)
             except:
                 continue
-            yield x
-            yield y
-            yield z
+            if self.permute:
+                yield permute(x, self.perms)
+                yield permute(y, self.perms)
+                yield permute(z, self.perms)
+            else:
+                yield x
+                yield y
+                yield z
 
 
 
 @ray.remote
 class SameSection(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
+    def __init__(self, permute=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.permute = False # only permute during training
+        if DATA_AUGMENTATION and not self.test:
+            self.permute = True
+            self.perms = prepare_permutations(self.alphabet)
     #EXACT COPY FROM ABOVE!
     def __iter__(self):
         while True:
@@ -114,7 +129,12 @@ class SameSection(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.util
                 z = load_mathml.load_pytorch(z, self.alphabet)
             except:
                 continue
-            yield x
-            yield y
-            yield z
+            if self.permute:
+                yield permute(x, self.perms)
+                yield permute(y, self.perms)
+                yield permute(z, self.perms)
+            else:
+                yield x
+                yield y
+                yield z
 

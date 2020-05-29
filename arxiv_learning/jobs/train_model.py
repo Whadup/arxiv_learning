@@ -197,8 +197,8 @@ def train_model(batch_size, learning_rate, epochs, model, sacred_experiment):
         }
     }
 
-    trainloader = RayManager(total=10000, blowout=15, custom_heuristics=heuristics)
-    testloader = RayManager(test=True, total=100, blowout=15, custom_heuristics=heuristics)
+    trainloader = RayManager(total=10000, blowout=8, custom_heuristics=heuristics)
+    testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics)
 
     loss_log_interval = 250
 
