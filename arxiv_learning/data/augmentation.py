@@ -31,3 +31,9 @@ def permute(X, perms):
         return perm[X]
 # X[where, TAG_SYMBOLS:TAG_SYMBOLS+CONTENT_SYMBOLS-1] = X[where, :][:, perm]
 # 	return X
+
+def break_order(X, proba=0.15):
+    mask = torch.rand((X.pos.shape[0], 1)) < proba
+    rand_pos = torch.randint_like(X.pos, 10)
+    X.pos = torch.where(mask, X.pos, rand_pos)
+    return X

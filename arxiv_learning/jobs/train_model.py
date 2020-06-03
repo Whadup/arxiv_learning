@@ -3,12 +3,14 @@ import torch
 import os
 import torch.optim as optim
 from torch_geometric.nn import GatedGraphConv
+from torch_scatter import scatter_min
 import tqdm
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from arxiv_learning.data.dataloader import RayManager
 import arxiv_learning.data.heuristics.json_dataset
 import arxiv_learning.data.heuristics.equations
+import arxiv_learning.data.heuristics.shuffle
 import arxiv_learning.data.heuristics.context
 from arxiv_learning.nn.softnormalization import SoftNormalization
 from arxiv_learning.data.load_mathml import VOCAB_SYMBOLS
@@ -18,6 +20,11 @@ import arxiv_learning.nn.loss as losses
 from arxiv_learning.nn.scheduler import WarmupLinearSchedule
 from arxiv_learning.jobs.gitstatus import get_repository_status
 from numpy import round
+import contextlib
+
+@contextlib.contextmanager
+def null():
+    yield
 
 def replace_tabs(s):
     return ' '.join('%-4s' % item for item in s.split('\t'))
@@ -101,8 +108,6 @@ class HistogramLossHead(Head):
 
         self.target = loss
 
-    
-
 class RelationTypeHead(Head):
     def __init__(self, model, width=512, hidden_dim=64, num_classes=2):
         super().__init__(model)
@@ -166,9 +171,84 @@ class RelationTypeHead(Head):
         self.example_cnt += batch_size
 
         self.target = loss.mean()
-    
+
+class MaskedHead(Head):
+    def __init__(self, model, width=512):
+        super().__init__(model)
+        self.width = width
+        self.output = torch.nn.Linear(self.hidden_dim, VOCAB_SYMBOLS)
+        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
+
+    def reset_metrics(self):
+        self.example_cnt = 0
+        self.running_loss = 0
+
+    def metrics(self):
+        return {
+            "Number-Examples": self.example_cnt,
+            "Cross-Entropy": round(self.running_loss / (1 if self.example_cnt < 1 else self.example_cnt), 4)
+        }
+
+    def forward(self, data):
+        x = self.model(data)
+        y = data.y
+
+class BinaryClassificationHead(Head):
+    def __init__(self, model, width=512, hidden_dim=64, num_classes=2):
+        super().__init__(model)
+        self.width = width
+        self.hidden_dim = hidden_dim
+        self.num_classes = num_classes
+        self.hidden = torch.nn.Linear(self.width, self.hidden_dim)
+        self.output = torch.nn.Linear( self.hidden_dim, self.num_classes)
+        self.bn = torch.nn.BatchNorm1d(self.hidden_dim)
+        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
+
+    def reset_metrics(self):
+        self.example_cnt = 0
+        self.running_accuracy = 0
+        self.running_loss = 0
+
+    def metrics(self):
+        return {
+            "Number-Examples": self.example_cnt,
+            "Cross-Entropy": round(self.running_loss / (1 if self.example_cnt < 1 else self.example_cnt), 4),
+            "Accuracy": round(self.running_accuracy / (1 if self.example_cnt < 1 else self.example_cnt), 4)
+        }
+
+    def forward(self, data):
+        targets = data.y
+        x = self.model(data)
+        if hasattr(data, "batch"):
+            emb = scatter_mean(x, data.batch, dim=0)
+        else:
+            emb = x.mean(dim=0, keepdim=True)
+        emb = torch.nn.functional.relu(self.hidden(emb))
+        preds = self.output(emb)
+        batch_size = data.num_graphs
+
+        # loss = self.loss(preds1, targets[:, 0]) + self.loss(preds2, targets[:, 2])
+        # acc = (preds1.argmax(dim=1) == targets[:, 0]).sum() + (preds2.argmax(dim=1) == targets[:, 2]).sum()
+
+        loss = self.loss(preds, targets)
+        acc = (preds.argmax(dim=1) == targets).sum()
+
+
+        self.running_accuracy += acc.item()
+        self.running_loss += loss.sum().item()
+        self.example_cnt += batch_size
+
+        self.target = loss.mean()
+
 SACRED_EXPERIMENT = Experiment(name="train_model_{}".format(datetime.date.today().isoformat()))
 MODEL_PATH = "checkpoints/"
+from sacred.observers import MongoObserver
+
+SACRED_EXPERIMENT.observers.append(MongoObserver.create(url='mongodb://lukas:lukas@s876pn04:27017'))
 SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
 
 @SACRED_EXPERIMENT.capture
@@ -205,10 +285,16 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
             "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             "head": HistogramLossHead,
             "head_kwargs": {"width": width, "output_dim": 64}
+        },
+        "shuffle": {
+            "data_set": arxiv_learning.data.heuristics.shuffle.ShuffleHeuristic,
+            "head": BinaryClassificationHead,
+            "head_kwargs": {"width": width},
+            "blowout": 3
         }
     }
 
-    trainloader = RayManager(total=10000, blowout=8, custom_heuristics=heuristics)
+    trainloader = RayManager(total=1000, blowout=8, custom_heuristics=heuristics)
     testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
@@ -232,6 +318,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
     for epoch in range(epochs):  # loop over the dataset multiple times
         for loader in [trainloader, testloader]:
             with tqdm.tqdm(total=loader.total * 128, ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
+
                 pbar.set_description("epoch {}/{}".format(epoch+1, epochs))
                 if loader == testloader:
                     net = net.eval()
@@ -240,28 +327,28 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
 
                 for head in heads.values():
                     head.reset_metrics()
+                with (torch.enable_grad() if loader == trainloader else torch.no_grad()):
+                    for i, data in enumerate(loader):
+                        dataset, data = data
+                        data = data.to(device)
+                        heads[dataset].forward(data)
+                    
+                        if loader is trainloader:
+                            heads[dataset].backward()
 
-                for i, data in enumerate(loader):
-                    dataset, data = data
-                    data = data.to(device)
-                    heads[dataset].forward(data)
-                   
-                    if loader is trainloader:
-                        heads[dataset].backward()
-
-                    pbar.update(128)
-                    # pbar.set_description("epoch [{}/{}] - loss {:.4f} ({:.4f}) [{:.3f}, {:.3f}%]"
-                    #     .format(epoch+1, epochs, running_loss/example_cnt, smooth_running_loss,
-                    #         multitask_loss/example_cnt, running_accuracy/example_cnt))
-                    bars[dataset].desc = replace_tabs("\t".join(["{:18}{:.4f}".format("{}:".format(key), value) for key, value in heads[dataset].metrics().items()]))
-                    bars[dataset].refresh()
-                    if i % loss_log_interval == loss_log_interval - 1:
-                        for dataset, head in heads.items():
-                            for metric, value in head.metrics().items():
-                                if loader is testloader:
-                                    sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
-                                else:
-                                    sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
+                        pbar.update(128)
+                        # pbar.set_description("epoch [{}/{}] - loss {:.4f} ({:.4f}) [{:.3f}, {:.3f}%]"
+                        #     .format(epoch+1, epochs, running_loss/example_cnt, smooth_running_loss,
+                        #         multitask_loss/example_cnt, running_accuracy/example_cnt))
+                        bars[dataset].desc = replace_tabs("\t".join(["{:18}{:.4f}".format("{}:".format(key), value) for key, value in heads[dataset].metrics().items()]))
+                        bars[dataset].refresh()
+                        if i % loss_log_interval == loss_log_interval - 1:
+                            for dataset, head in heads.items():
+                                for metric, value in head.metrics().items():
+                                    if loader is testloader:
+                                        sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
+                                    else:
+                                        sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
             if i % loss_log_interval != loss_log_interval - 1:
                 for dataset, head in heads.items():
                     for metric, value in head.metrics().items():

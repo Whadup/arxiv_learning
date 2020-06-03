@@ -49,7 +49,8 @@ class RayManager():
                 "data_set" : v["data_set"].remote(test=self.test),
                 "head" : v["head"]
             }
-            for i in range(self.blowout) for k, v in self.heuristics.items()
+            for k, v in self.heuristics.items()
+            for i in range(v.get("blowout", self.blowout))
         }
         self.round = []
         self.robin = []
