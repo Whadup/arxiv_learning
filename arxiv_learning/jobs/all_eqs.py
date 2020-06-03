@@ -3,6 +3,8 @@ import os
 import json
 from tqdm import tqdm
 
+import data.load_mathml
+
 FLUSH_THRESHOLD = 1000
 
 
@@ -16,21 +18,30 @@ def all_eqs(paper_dict):
     return result
 
 
-def build_representation_string(obj):
-    representation = ""
-    if "type" in obj:
-        representation+=obj["type"]+"_"
-    if "content" in obj:
-        for char in obj["content"]:
-            representation += char
-        representation += "_"
-    without_attr = representation
-    return without_attr
-
-
 def flush_cache(cache):
     with open(args.out_path, 'a') as f:
-        f.writelines(cache)
+        for eq in cache:
+            f.write(eq + "\n")
+
+
+def mathml_to_string(mathml):
+    preorder_str = ""
+    tree_dict = data.load_mathml.load_dict(None, mathml)
+    repr_string, without_attr = data.load_mathml.build_representation_string(tree_dict)
+    preorder_str += " " + without_attr
+    if "children" in tree_dict:
+        for child in tree_dict["children"]:
+            preorder_str = _tree_to_string(child, preorder_str)
+    return preorder_str
+
+
+def _tree_to_string(tree_dict, preorder_str):
+    repr_string, without_attr = data.load_mathml.build_representation_string(tree_dict)
+    preorder_str += " " + without_attr
+    if "children" in tree_dict:
+        for child in tree_dict["children"]:
+            preorder_str = _tree_to_string(child, preorder_str)
+    return preorder_str
 
 
 def main():
@@ -38,12 +49,13 @@ def main():
 
     cache = []
 
-    for json_file in tqdm(json_files):
+    for json_file in tqdm(json_files[:500]):
         with open(json_file) as f:
             try:
                 paper_dict = json.load(f)
                 eqs_xml = all_eqs(paper_dict)
-                eqs_string = [build_representation_string(eq_xml) for eq_xml in eqs_xml]
+                eqs_string = [mathml_to_string(eq_xml) for eq_xml in eqs_xml]
+                eqs_string = [item for item in eqs_string if item]
                 cache += eqs_string
             except json.decoder.JSONDecodeError:
                 pass
