@@ -22,6 +22,7 @@ def construct_tree(elements):
 def split_tree(tree):
     main_row = tree.find(xpath_main_row, NAMESPACE)
     if main_row:
+        # split the main_row on nodes that contain symbols like =,<,> etc.
         subtrees = itertools.groupby(main_row, match_operator)
         # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
         # by the lambda given to groupby.
