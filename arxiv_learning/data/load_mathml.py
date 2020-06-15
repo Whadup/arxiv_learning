@@ -10,7 +10,7 @@ EXAMPLE = "/data/s1/pfahler/arxiv_processed/subset_ml/train/mathml/\
 CONTENT_SYMBOLS = 192
 ATTRIBUTE_SYMBOLS = 32
 TAG_SYMBOLS = 32
-VOCAB_SYMBOLS = 1024
+VOCAB_SYMBOLS = 512
 
 DIM = CONTENT_SYMBOLS + ATTRIBUTE_SYMBOLS + TAG_SYMBOLS
 MAX_POS = 256
@@ -38,7 +38,6 @@ def process(d):
 
 def load_dict(path, string=None):
     """Load XML into Python dictionaries"""
-    # obj = xmltodict.parse(open(path, "rb"))
     if string is not None:
         obj = ET.fromstring(string)
     else:
@@ -158,7 +157,7 @@ def build_alphabet(path):
         try:
             paper = json.load(archive.open(p, "r"))
             all_eqs = sum([
-                [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in paper["sections"]]
+                [eq["mathml"] for eq in section["equations"] if "mathml" in eq and eq["mathml"]] for section in paper["sections"]]
                 , [])
         except json.decoder.JSONDecodeError as e:
             continue
