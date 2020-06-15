@@ -1,6 +1,9 @@
 ## Arxiv Learning
 We propose to use unsupervised representation learning techniques to search for relatex mathematical expressions on arxiv.org. A demo is running at https://heureka.azurewebsites.net/
 
+## Preprocessing
+
+We have published our preprocessing pipeline at [https://github.com/Whadup/arxiv_library](https://github.com/Whadup/arxiv_library).
 {% comment %} 
 ## Models
 
