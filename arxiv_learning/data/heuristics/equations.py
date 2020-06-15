@@ -1,5 +1,6 @@
 """Split Expressions into LHS and RHS of equalities and inequalities"""
 from copy import deepcopy
+import itertools
 import numpy as np
 import torch
 from random import randint
@@ -20,6 +21,34 @@ ET.register_namespace("", NAMESPACE["mathml"])
 NEW_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]/mathml:mstyle/mathml:mrow"
 FIRST_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]"
 FIRST_COL = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]"
+OPERATORS = "=≤≥<>"
+MAIN_ROW = "mathml:math/mathml:semantics/mathml:mrow"
+MROW_TEMPLATE = ET.fromstring("<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
+match_operator = lambda e: e.text in OPERATORS if e.text else False
+
+
+def construct_tree(elements):
+    root = deepcopy(MROW_TEMPLATE)
+    main_row = root.find(MAIN_ROW, NAMESPACE)
+    for i, elem in enumerate(elements):
+        main_row.insert(i, elem)
+    return root
+
+
+def split_single(string=None, fail=True):
+    tree = ET.fromstring(string)
+    main_row = tree.find(MAIN_ROW, NAMESPACE)
+    if main_row:
+        # split the main_row on nodes that contain symbols like =,<,> etc.
+        subtrees = itertools.groupby(main_row, match_operator)
+        # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
+        # by the lambda given to groupby.
+        subtrees = [construct_tree(split[1]) for split in subtrees if not split[0]]
+        # if no operator is found on that we can split, the variable subtrees contains only the full tree
+        # but this is useless. Therefore we return an empty list in that case.
+        return subtrees if len(subtrees) > 1 else []
+    else:
+        return None if fail else [string]
 
 def subtree(obj, current):
     newroot = deepcopy(obj)
@@ -49,9 +78,8 @@ def iterate_table(obj):
             for elem in col:
                 yield elem
 
-def split(string=None, fail=True):
+def split_multiline(string=None, fail=True):
     obj = ET.fromstring(string)
-    operators = "=≤≥<>"
     splits = []
     #multiline split
     MULTILINE_SPLIT = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr/mathml:mtd/mathml:mstyle/mathml:mrow/mathml:mo[.='{}']"
@@ -61,7 +89,7 @@ def split(string=None, fail=True):
         if fail:
             return None
         return [string]
-    for operator in operators:
+    for operator in OPERATORS:
         splits.extend(
             obj.findall(MULTILINE_SPLIT.format(operator),
                 namespaces=NAMESPACE)
@@ -94,6 +122,16 @@ def split(string=None, fail=True):
     if not fail or len(results) > 1:
         return results
     return None
+
+
+def split(string=None, fail=True):
+    split_strategies = [split_multiline, split_single]
+    for strategy in split_strategies:
+        parts = strategy(string=string, fail=fail)
+        if parts:
+            return parts
+    return None
+
 
 @ray.remote
 class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
