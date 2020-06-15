@@ -1,5 +1,5 @@
 theme: jekyll-theme-minimal
 title: "Searching Related Mathematical Expressions with Machine Learning"
-description: "We scrape mathematical expressions from arxiv.org to train a machine learning model that can find similar formulas in millions of papers."
+description: "We scrape mathematical expressions from arxiv.org to train a machine learning model that can find similar formulas in millions of scientific articles."
 show_downloads: "true"
 logo: "ls8.png"
