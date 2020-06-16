@@ -12,31 +12,35 @@ from arxiv_learning.data.heuristics.context import sample_equation, load_json
 
 NAMESPACE = {"mathml": "http://www.w3.org/1998/Math/MathML"}
 ET.register_namespace("", NAMESPACE["mathml"])
-# multiline split
-MULTILINE_SPLIT = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr/mathml:mtd/mathml:mstyle/mathml:mrow/mathml:mo[.='{}']"
+
+# XPath definitions
+MULTILINE_SPLIT = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr/" \
+                  "mathml:mtd/mathml:mstyle/mathml:mrow/mathml:mo[.='{}']"
 NEW_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]/mathml:mstyle/mathml:mrow"
 FIRST_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]"
 FIRST_COL = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]"
-OPERATORS = "=≤≥<>"
-MAIN_ROW = "mathml:math/mathml:semantics/mathml:mrow"
+ROWS = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr"
+COLS = "mathml:mtd/mathml:mstyle/mathml:mrow"
+SINGLE_ROW = "mathml:math/mathml:semantics/mathml:mrow"
+MO = "mathml:math//mathml:mo"
+MFRAC = "mathml:math//mathml:mfrac"
+MSQRT = "mathml:math//mathml:msqrt"
+MROOT = "mathml:math//mathml:mroot"
+ALL_TAGS = "mathml:math//*"
+
+USEFUL_NODES = [MO, MFRAC, MSQRT, MROOT]
+
 MROW_TEMPLATE = ET.fromstring(
     "<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
-CONTENT = "mathml:math//*.='e'"
-match_operator = lambda e: e.text in OPERATORS if e.text else False
 
-MO_NODE = "mathml:math//mathml:mo"
-MFRAC_NODE = "mathml:math//mathml:mfrac"
-MSQRT_NODE = "mathml:math//mathml:msqrt"
-MROOT_NODE = "mathml:math//mathml:mroot"
-USEFUL_NODES = [MO_NODE, MFRAC_NODE, MSQRT_NODE, MROOT_NODE]
-ALL_NODES = "mathml:math//*"
-
+OPERATORS = "=≤≥<>"
 # Two eqs should not differ to much in their lenght eq1 should be at most 1.5 times longer than eq2 and vice_versa
 SIZE_FACTOR = 0.3
 FACTOR_MAX = 1 + SIZE_FACTOR
 FACTOR_MIN = 1 - SIZE_FACTOR
 
-count_nodes = lambda e: len(e.findall(ALL_NODES, NAMESPACE))
+count_nodes = lambda e: len(e.findall(ALL_TAGS, NAMESPACE))
+match_operator = lambda e: e.text in OPERATORS if e.text else False
 
 
 def is_useful_subeq(eq):
@@ -64,23 +68,10 @@ def filter_size(results):
 
 def construct_tree(elements):
     root = deepcopy(MROW_TEMPLATE)
-    main_row = root.find(MAIN_ROW, NAMESPACE)
+    main_row = root.find(SINGLE_ROW, NAMESPACE)
     for i, elem in enumerate(elements):
         main_row.insert(i, elem)
     return root
-
-
-def split_single(string=None, fail=True):
-    tree = ET.fromstring(string)
-    results = []
-    main_row = tree.find(MAIN_ROW, NAMESPACE)
-    if main_row:
-        # split the main_row on nodes that contain symbols like =,<,> etc.
-        results = itertools.groupby(main_row, match_operator)
-        # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
-        # by the lambda given to groupby.
-        results = [construct_tree(split[1]) for split in results if not split[0]]
-    return results
 
 
 def subtree(obj, current):
@@ -105,12 +96,23 @@ def subtree(obj, current):
 
 
 def iterate_table(obj):
-    ROWS = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr"
-    COLS = "mathml:mtd/mathml:mstyle/mathml:mrow"
     for row in obj.findall(ROWS, namespaces=NAMESPACE):
         for col in row.findall(COLS, namespaces=NAMESPACE):
             for elem in col:
                 yield elem
+
+
+def split_single(string=None, fail=True):
+    tree = ET.fromstring(string)
+    results = []
+    main_row = tree.find(SINGLE_ROW, NAMESPACE)
+    if main_row:
+        # split the main_row on nodes that contain symbols like =,<,> etc.
+        results = itertools.groupby(main_row, match_operator)
+        # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
+        # by the lambda given to groupby.
+        results = [construct_tree(split[1]) for split in results if not split[0]]
+    return results
 
 
 def split_multiline(string=None, fail=True):
