@@ -50,6 +50,18 @@ def is_useful_subeq(eq):
     return False
 
 
+def filter_size(results):
+    results = sorted(results, key=count_nodes)
+    median_index = int(len(results)/2)
+    if median_index < 1:
+        return None
+    median = count_nodes(results[median_index])
+    upper_bound = median * FACTOR_MAX
+    lower_bound = median * FACTOR_MIN
+    results = list(filter(lambda e: lower_bound <= count_nodes(e) <= upper_bound, results))
+    return results
+
+
 def construct_tree(elements):
     root = deepcopy(MROW_TEMPLATE)
     main_row = root.find(MAIN_ROW, NAMESPACE)
@@ -142,14 +154,9 @@ def split_multiline(string=None, fail=True):
     # newroot.write("tmp{}.mathml".format(count))
     if is_useful_subeq(newroot):
         results.append(newroot.getroot())
-    results = sorted(results, key=count_nodes)
-    median_index = int(len(results)/2)
-    if median_index < 1:
+    results = filter_size(results)
+    if results is None:
         return None if fail else [string]
-    median = count_nodes(results[median_index])
-    upper_bound = median * FACTOR_MAX
-    lower_bound = median * FACTOR_MIN
-    results = list(filter(lambda e: lower_bound <= count_nodes(e) <= upper_bound, results))
     if not fail or len(results) > 1:
         return [ET.tostring(result, encoding="unicode") for result in results]
     return None
