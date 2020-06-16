@@ -34,7 +34,8 @@ MROW_TEMPLATE = ET.fromstring(
     "<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
 
 OPERATORS = "=≤≥<>"
-# Two eqs should not differ to much in their lenght eq1 should be at most 1.5 times longer than eq2 and vice_versa
+# Two eqs should not differ to much in their length. So the length of the eqs should not deviate
+# more than SIZE_FACTOR from the median of all lengths. (See function filter_size())
 SIZE_FACTOR = 0.3
 FACTOR_MAX = 1 + SIZE_FACTOR
 FACTOR_MIN = 1 - SIZE_FACTOR
@@ -44,6 +45,9 @@ match_operator = lambda e: e.text in OPERATORS if e.text else False
 
 
 def is_useful_subeq(eq):
+    """
+    Searches for any USEFUL_NODE in eq and returns True if it found one.
+    """
     for node in USEFUL_NODES:
         if eq.find(node, NAMESPACE):
             return True
@@ -55,6 +59,10 @@ def filter_useful(results):
 
 
 def filter_size(results):
+    """
+    Ensures that the length of the eqs in results do not deviate too much from the median.
+    Eqs that deviate to much are removed from the list.
+    """
     results = sorted(results, key=count_nodes)
     median_index = int(len(results) / 2)
     if median_index < 1:
@@ -67,6 +75,9 @@ def filter_size(results):
 
 
 def construct_tree(elements):
+    """
+    Construct new mathml tree with one mrow containing the elements.
+    """
     root = deepcopy(MROW_TEMPLATE)
     main_row = root.find(SINGLE_ROW, NAMESPACE)
     for i, elem in enumerate(elements):
@@ -74,7 +85,10 @@ def construct_tree(elements):
     return root
 
 
-def subtree(obj, current):
+def subtree(obj, elements):
+    """
+    Construct new multiline mathml tree with mtable containing the elements.
+    """
     newroot = deepcopy(obj)
     first_row = newroot.find(FIRST_ROW, namespaces=NAMESPACE)
     first_col = newroot.find(FIRST_COL, namespaces=NAMESPACE)
@@ -82,7 +96,7 @@ def subtree(obj, current):
     # Remove all but the first colum from the first row
     first_row.clear()
     first_row.append(first_col)
-    # Remove all buut the first row
+    # Remove all but the first row
     newroot.find("mathml:math/mathml:semantics/mathml:mtable",
                  namespaces=NAMESPACE).clear()
     newroot.find("mathml:math/mathml:semantics/mathml:mtable",
@@ -91,11 +105,14 @@ def subtree(obj, current):
     newroot.find(NEW_ROW,
                  namespaces=NAMESPACE).clear()
     newroot.find(NEW_ROW,
-                 namespaces=NAMESPACE).extend(current)
+                 namespaces=NAMESPACE).extend(elements)
     return ET.ElementTree(element=newroot)
 
 
 def iterate_table(obj):
+    """
+    Iterate over all cells in mtable.
+    """
     for row in obj.findall(ROWS, namespaces=NAMESPACE):
         for col in row.findall(COLS, namespaces=NAMESPACE):
             for elem in col:
