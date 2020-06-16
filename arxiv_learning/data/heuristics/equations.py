@@ -43,11 +43,16 @@ FACTOR_MIN = 1 - SIZE_FACTOR
 
 count_nodes = lambda e: len(e.findall(ALL_NODES, NAMESPACE))
 
+
 def is_useful_subeq(eq):
     for node in USEFUL_NODES:
         if eq.find(node, NAMESPACE):
             return True
     return False
+
+
+def filter_useful(results):
+    return list(filter(is_useful_subeq, results))
 
 
 def filter_size(results):
@@ -75,13 +80,17 @@ def split_single(string=None, fail=True):
     main_row = tree.find(MAIN_ROW, NAMESPACE)
     if main_row:
         # split the main_row on nodes that contain symbols like =,<,> etc.
-        subtrees = itertools.groupby(main_row, match_operator)
+        results = itertools.groupby(main_row, match_operator)
         # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
         # by the lambda given to groupby.
-        subtrees = [construct_tree(split[1]) for split in subtrees if not split[0]]
-        # if no operator is found on that we can split, the variable subtrees contains only the full tree
-        # but this is useless. Therefore we return an empty list in that case.
-        return subtrees if len(subtrees) > 1 else []
+        results = [construct_tree(split[1]) for split in results if not split[0]]
+        results = filter_useful(results)
+        results = filter_size(results)
+
+        if results is None or len(results) < 1:
+            return None if fail else [string]
+        else:
+            [ET.tostring(result, encoding="unicode") for result in results]
     else:
         return None if fail else [string]
 
@@ -144,21 +153,21 @@ def split_multiline(string=None, fail=True):
             # print(current)
             newroot = subtree(obj, current)
             # newroot.write("tmp{}.mathml".format(count))
-            if is_useful_subeq(newroot):
-                results.append(newroot.getroot())
+            results.append(newroot.getroot())
             count += 1
             current = []
         else:
             current.append(elem)
     newroot = subtree(obj, current)
     # newroot.write("tmp{}.mathml".format(count))
-    if is_useful_subeq(newroot):
-        results.append(newroot.getroot())
+    results.append(newroot.getroot())
+    results = filter_useful(results)
     results = filter_size(results)
-    if results is None:
+
+    if results is None or len(results) < 1:
         return None if fail else [string]
-    if not fail or len(results) > 1:
-        return [ET.tostring(result, encoding="unicode") for result in results]
+    else:
+        [ET.tostring(result, encoding="unicode") for result in results]
     return None
 
 
