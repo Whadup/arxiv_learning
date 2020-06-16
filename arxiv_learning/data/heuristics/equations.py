@@ -102,7 +102,7 @@ def iterate_table(obj):
                 yield elem
 
 
-def split_single(string=None, fail=True):
+def split_single(string):
     tree = ET.fromstring(string)
     results = []
     main_row = tree.find(SINGLE_ROW, NAMESPACE)
@@ -115,11 +115,11 @@ def split_single(string=None, fail=True):
     return results
 
 
-def split_multiline(string=None, fail=True):
+def split_multiline(string):
     obj = ET.fromstring(string)
 
     if obj.find(NEW_ROW, namespaces=NAMESPACE) is None:
-        return None if fail else [string]
+        return []
 
     splits = []
     for operator in OPERATORS:
@@ -129,7 +129,7 @@ def split_multiline(string=None, fail=True):
         )
 
     if not splits:
-        return None if fail else [string]
+        return []
 
     current = []
     count = 1
@@ -150,14 +150,15 @@ def split_multiline(string=None, fail=True):
 
 def split(string=None, fail=True):
     split_strategies = [split_multiline, split_single]
+    results = []
     for strategy in split_strategies:
-        results = strategy(string=string, fail=fail)
+        results = strategy(string)
         if results and len(results) > 1:
             break
 
     results = filter_useful(results)
     results = filter_size(results)
-    if results is None or len(results) < 1:
+    if not results or len(results) < 2:
         return None if fail else [string]
     else:
         return [ET.tostring(result, encoding="unicode") for result in results]
@@ -190,17 +191,13 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 z = split(string=other_eq, fail=False)
                 if z is None:
                     continue
-                # filter parts that are too small
                 part_a, part_b = np.random.choice(parts, size=2, replace=False)
                 part_c = np.random.choice(z)
-                try:
-                    x = load_mathml.load_pytorch(part_a, self.alphabet)
-                    y = load_mathml.load_pytorch(part_b, self.alphabet)
-                    z = load_mathml.load_pytorch(part_c, self.alphabet)
-                    yield x
-                    yield y
-                    yield z
-                except Exception as identifier:
-                    print(type(identifier), identifier)
+                x = load_mathml.load_pytorch(part_a, self.alphabet)
+                y = load_mathml.load_pytorch(part_b, self.alphabet)
+                z = load_mathml.load_pytorch(part_c, self.alphabet)
+                yield x
+                yield y
+                yield z
             except Exception as identifier:
                 print(type(identifier), identifier)
