@@ -18,13 +18,36 @@ from arxiv_learning.data.heuristics.context import sample_equation, load_json
 
 NAMESPACE = {"mathml":"http://www.w3.org/1998/Math/MathML"}
 ET.register_namespace("", NAMESPACE["mathml"])
+# multiline split
+MULTILINE_SPLIT = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr/mathml:mtd/mathml:mstyle/mathml:mrow/mathml:mo[.='{}']"
 NEW_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]/mathml:mstyle/mathml:mrow"
 FIRST_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]"
 FIRST_COL = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]"
 OPERATORS = "=≤≥<>"
 MAIN_ROW = "mathml:math/mathml:semantics/mathml:mrow"
 MROW_TEMPLATE = ET.fromstring("<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
+CONTENT = "mathml:math//*.='e'"
 match_operator = lambda e: e.text in OPERATORS if e.text else False
+
+MO_NODE = "mathml:math//mathml:mo"
+MFRAC_NODE = "mathml:math//mathml:mfrac"
+MSQRT_NODE = "mathml:math//mathml:msqrt"
+MROOT_NODE = "mathml:math//mathml:mroot"
+USEFUL_NODES = [MO_NODE, MFRAC_NODE, MSQRT_NODE, MROOT_NODE]
+ALL_NODES = "mathml:math//*"
+
+# Two eqs should not differ to much in their lenght eq1 should be at most 1.5 times longer than eq2 and vice_versa
+SIZE_FACTOR = 0.3
+FACTOR_MAX = 1 + SIZE_FACTOR
+FACTOR_MIN = 1 - SIZE_FACTOR
+
+count_nodes = lambda e: len(e.findall(ALL_NODES, NAMESPACE))
+
+def is_useful_subeq(eq):
+    for node in USEFUL_NODES:
+        if eq.find(node, NAMESPACE):
+            return True
+    return False
 
 
 def construct_tree(elements):
@@ -52,8 +75,8 @@ def split_single(string=None, fail=True):
 
 def subtree(obj, current):
     newroot = deepcopy(obj)
-    first_row = obj.find(FIRST_ROW, namespaces=NAMESPACE)
-    first_col = obj.find(FIRST_COL, namespaces=NAMESPACE)
+    first_row = newroot.find(FIRST_ROW, namespaces=NAMESPACE)
+    first_col = newroot.find(FIRST_COL, namespaces=NAMESPACE)
 
     # Remove all but the first colum from the first row
     first_row.clear()
@@ -81,8 +104,6 @@ def iterate_table(obj):
 def split_multiline(string=None, fail=True):
     obj = ET.fromstring(string)
     splits = []
-    #multiline split
-    MULTILINE_SPLIT = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr/mathml:mtd/mathml:mstyle/mathml:mrow/mathml:mo[.='{}']"
     # print(obj)
     # print(obj.findall("mathml:math/mathml:semantics", namespaces=NAMESPACE))
     if obj.find(NEW_ROW, namespaces=NAMESPACE) is None:
@@ -111,16 +132,26 @@ def split_multiline(string=None, fail=True):
             # print(current)
             newroot = subtree(obj, current)
             # newroot.write("tmp{}.mathml".format(count))
-            results.append(ET.tostring(newroot.getroot(), encoding="unicode"))
+            if is_useful_subeq(newroot):
+                results.append(newroot.getroot())
             count += 1
             current = []
         else:
             current.append(elem)
     newroot = subtree(obj, current)
     # newroot.write("tmp{}.mathml".format(count))
-    results.append(ET.tostring(newroot.getroot(), encoding="unicode"))
+    if is_useful_subeq(newroot):
+        results.append(newroot.getroot())
+    results = sorted(results, key=count_nodes)
+    median_index = int(len(results)/2)
+    if median_index < 1:
+        return None if fail else [string]
+    median = count_nodes(results[median_index])
+    upper_bound = median * FACTOR_MAX
+    lower_bound = median * FACTOR_MIN
+    results = list(filter(lambda e: lower_bound <= count_nodes(e) <= upper_bound, results))
     if not fail or len(results) > 1:
-        return results
+        return [ET.tostring(result, encoding="unicode") for result in results]
     return None
 
 
@@ -172,7 +203,7 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                     # del eqs[other_eq]
                     continue
                 #filter parts that are too small
-                part_a, part_b = np.random.choice(parts, size=2)
+                part_a, part_b = np.random.choice(parts, size=2, replace=False)
                 part_c = np.random.choice(z)
                 try:
                     x = load_mathml.load_pytorch(part_a, self.alphabet)
