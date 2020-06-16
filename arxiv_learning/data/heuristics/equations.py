@@ -124,51 +124,40 @@ def iterate_table(obj):
 
 def split_multiline(string=None, fail=True):
     obj = ET.fromstring(string)
-    splits = []
-    # print(obj)
-    # print(obj.findall("mathml:math/mathml:semantics", namespaces=NAMESPACE))
+
     if obj.find(NEW_ROW, namespaces=NAMESPACE) is None:
-        if fail:
-            return None
-        return [string]
+        return None if fail else [string]
+
+    splits = []
     for operator in OPERATORS:
         splits.extend(
             obj.findall(MULTILINE_SPLIT.format(operator),
                 namespaces=NAMESPACE)
         )
 
-    if not splits and fail:
-        return
-    elif not splits:
-        return [string]
-    # split_layer = obj.find("mathml:math/mathml:semantics/mathml:mrow",
-    #     namespaces=NAMESPACE)
-    # if split_layer is None:
-    #     return None
+    if not splits:
+        return None if fail else [string]
+
     current = []
     count = 1
     results = []
     for elem in iterate_table(obj):
         if elem in splits:
-            # print(current)
             newroot = subtree(obj, current)
-            # newroot.write("tmp{}.mathml".format(count))
             results.append(newroot.getroot())
             count += 1
             current = []
         else:
             current.append(elem)
     newroot = subtree(obj, current)
-    # newroot.write("tmp{}.mathml".format(count))
     results.append(newroot.getroot())
+
     results = filter_useful(results)
     results = filter_size(results)
-
     if results is None or len(results) < 1:
         return None if fail else [string]
     else:
-        [ET.tostring(result, encoding="unicode") for result in results]
-    return None
+        return [ET.tostring(result, encoding="unicode") for result in results]
 
 
 def split(string=None, fail=True):
