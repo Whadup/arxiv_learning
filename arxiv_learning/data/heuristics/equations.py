@@ -163,7 +163,7 @@ def split(string=None, fail=True):
         return [ET.tostring(result, encoding="unicode") for result in results]
 
 
-#@ray.remote
+@ray.remote
 class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
     def __init__(self, test=False):
         super().__init__(test=test)
@@ -201,13 +201,12 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 part_a, part_b = np.random.choice(parts, size=2, replace=False)
                 part_c = np.random.choice(z)
                 try:
-                    yield part_a, part_b, part_c
-                    #x = load_mathml.load_pytorch(part_a, self.alphabet)
-                    #y = load_mathml.load_pytorch(part_b, self.alphabet)
-                    #z = load_mathml.load_pytorch(part_c, self.alphabet)
-                    #yield x
-                    #yield y
-                    #yield z
+                    x = load_mathml.load_pytorch(part_a, self.alphabet)
+                    y = load_mathml.load_pytorch(part_b, self.alphabet)
+                    z = load_mathml.load_pytorch(part_c, self.alphabet)
+                    yield x
+                    yield y
+                    yield z
                     # self.item = (x,y,z)
                     # return self.item
                 except Exception as identifier:
