@@ -3,19 +3,12 @@ from copy import deepcopy
 import itertools
 import numpy as np
 import torch
-from random import randint
 import ray
 import xml.etree.ElementTree as ET
 import arxiv_learning.data.heuristics.heuristic
 import arxiv_learning.data.load_mathml as load_mathml
 from arxiv_learning.data.heuristics.context import sample_equation, load_json
 
-# def group_sections(x):
-#     parts = x.split("/")
-#     if len(parts)<3:
-#         return parts[1]
-#     f = "_".join(parts[2].split("_")[:-1])
-#     return parts[1] + "/" + f
 
 NAMESPACE = {"mathml": "http://www.w3.org/1998/Math/MathML"}
 ET.register_namespace("", NAMESPACE["mathml"])
@@ -178,13 +171,9 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
             i = np.random.choice(len(self.data))
             paper = load_json(self.archive, self.data[i])
             if paper is None:
-                # print("continue1")
-
                 continue
             pair = sample_equation(paper, size=2)
             if pair is None:
-                # del self.papers[i]
-                # print("continue2")
                 continue
             eq, other_eq = pair
             try:
@@ -196,11 +185,8 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 ratios = list([l / normalize for l in lengths])
                 deviations = list([min(len(ratios) * r, 1.0 / (r * len(ratios))) for r in ratios])
                 parts = [part for part, dev in zip(parts, deviations) if dev > 0.25]
-                # print(deviations)
-                # asdfa
                 z = split(string=other_eq, fail=False)
                 if z is None:
-                    # del eqs[other_eq]
                     continue
                 # filter parts that are too small
                 part_a, part_b = np.random.choice(parts, size=2, replace=False)
@@ -212,13 +198,7 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                     yield x
                     yield y
                     yield z
-                    # self.item = (x,y,z)
-                    # return self.item
                 except Exception as identifier:
                     print(type(identifier), identifier)
-                    # raise identifier
             except Exception as identifier:
                 print(type(identifier), identifier)
-                # print(eq)
-                # print(other_eq)
-                # raise identifier
