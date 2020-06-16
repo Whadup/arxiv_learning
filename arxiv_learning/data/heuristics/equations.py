@@ -77,6 +77,7 @@ def construct_tree(elements):
 
 def split_single(string=None, fail=True):
     tree = ET.fromstring(string)
+    results = []
     main_row = tree.find(MAIN_ROW, NAMESPACE)
     if main_row:
         # split the main_row on nodes that contain symbols like =,<,> etc.
@@ -84,15 +85,7 @@ def split_single(string=None, fail=True):
         # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
         # by the lambda given to groupby.
         results = [construct_tree(split[1]) for split in results if not split[0]]
-        results = filter_useful(results)
-        results = filter_size(results)
-
-        if results is None or len(results) < 1:
-            return None if fail else [string]
-        else:
-            [ET.tostring(result, encoding="unicode") for result in results]
-    else:
-        return None if fail else [string]
+    return results
 
 def subtree(obj, current):
     newroot = deepcopy(obj)
@@ -152,6 +145,16 @@ def split_multiline(string=None, fail=True):
     newroot = subtree(obj, current)
     results.append(newroot.getroot())
 
+    return results
+
+
+def split(string=None, fail=True):
+    split_strategies = [split_multiline, split_single]
+    for strategy in split_strategies:
+        results = strategy(string=string, fail=fail)
+        if results and len(results) > 1:
+            break
+
     results = filter_useful(results)
     results = filter_size(results)
     if results is None or len(results) < 1:
@@ -160,16 +163,7 @@ def split_multiline(string=None, fail=True):
         return [ET.tostring(result, encoding="unicode") for result in results]
 
 
-def split(string=None, fail=True):
-    split_strategies = [split_multiline, split_single]
-    for strategy in split_strategies:
-        parts = strategy(string=string, fail=fail)
-        if parts:
-            return parts
-    return None
-
-
-@ray.remote
+#@ray.remote
 class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
     def __init__(self, test=False):
         super().__init__(test=test)
@@ -190,11 +184,7 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
             eq, other_eq = pair
             try:
                 parts = split(string=eq)
-                if parts is None:
-
-                    # del eqs[j]
-                    # print("continue3")
-
+                if parts is None or len(parts) < 2:
                     continue
                 lengths = list([len(part) for part in parts])
                 normalize = 1.0 * sum(lengths)
@@ -211,12 +201,13 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 part_a, part_b = np.random.choice(parts, size=2, replace=False)
                 part_c = np.random.choice(z)
                 try:
-                    x = load_mathml.load_pytorch(part_a, self.alphabet)
-                    y = load_mathml.load_pytorch(part_b, self.alphabet)
-                    z = load_mathml.load_pytorch(part_c, self.alphabet)
-                    yield x
-                    yield y
-                    yield z
+                    yield part_a, part_b, part_c
+                    #x = load_mathml.load_pytorch(part_a, self.alphabet)
+                    #y = load_mathml.load_pytorch(part_b, self.alphabet)
+                    #z = load_mathml.load_pytorch(part_c, self.alphabet)
+                    #yield x
+                    #yield y
+                    #yield z
                     # self.item = (x,y,z)
                     # return self.item
                 except Exception as identifier:
