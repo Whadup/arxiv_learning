@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 import arxiv_learning.data.heuristics.heuristic
 import arxiv_learning.data.load_mathml as load_mathml
 from arxiv_learning.data.heuristics.context import sample_equation, load_json
+
 # def group_sections(x):
 #     parts = x.split("/")
 #     if len(parts)<3:
@@ -16,7 +17,7 @@ from arxiv_learning.data.heuristics.context import sample_equation, load_json
 #     f = "_".join(parts[2].split("_")[:-1])
 #     return parts[1] + "/" + f
 
-NAMESPACE = {"mathml":"http://www.w3.org/1998/Math/MathML"}
+NAMESPACE = {"mathml": "http://www.w3.org/1998/Math/MathML"}
 ET.register_namespace("", NAMESPACE["mathml"])
 # multiline split
 MULTILINE_SPLIT = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr/mathml:mtd/mathml:mstyle/mathml:mrow/mathml:mo[.='{}']"
@@ -25,7 +26,8 @@ FIRST_ROW = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]"
 FIRST_COL = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr[1]/mathml:mtd[1]"
 OPERATORS = "=≤≥<>"
 MAIN_ROW = "mathml:math/mathml:semantics/mathml:mrow"
-MROW_TEMPLATE = ET.fromstring("<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
+MROW_TEMPLATE = ET.fromstring(
+    "<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
 CONTENT = "mathml:math//*.='e'"
 match_operator = lambda e: e.text in OPERATORS if e.text else False
 
@@ -57,7 +59,7 @@ def filter_useful(results):
 
 def filter_size(results):
     results = sorted(results, key=count_nodes)
-    median_index = int(len(results)/2)
+    median_index = int(len(results) / 2)
     if median_index < 1:
         return None
     median = count_nodes(results[median_index])
@@ -87,6 +89,7 @@ def split_single(string=None, fail=True):
         results = [construct_tree(split[1]) for split in results if not split[0]]
     return results
 
+
 def subtree(obj, current):
     newroot = deepcopy(obj)
     first_row = newroot.find(FIRST_ROW, namespaces=NAMESPACE)
@@ -97,15 +100,16 @@ def subtree(obj, current):
     first_row.append(first_col)
     # Remove all buut the first row
     newroot.find("mathml:math/mathml:semantics/mathml:mtable",
-        namespaces=NAMESPACE).clear()
+                 namespaces=NAMESPACE).clear()
     newroot.find("mathml:math/mathml:semantics/mathml:mtable",
-        namespaces=NAMESPACE).append(first_row)
+                 namespaces=NAMESPACE).append(first_row)
     # into the first colum of the first row, put all the signs
     newroot.find(NEW_ROW,
-        namespaces=NAMESPACE).clear()
+                 namespaces=NAMESPACE).clear()
     newroot.find(NEW_ROW,
-        namespaces=NAMESPACE).extend(current)
+                 namespaces=NAMESPACE).extend(current)
     return ET.ElementTree(element=newroot)
+
 
 def iterate_table(obj):
     ROWS = "mathml:math/mathml:semantics/mathml:mtable/mathml:mtr"
@@ -114,6 +118,7 @@ def iterate_table(obj):
         for col in row.findall(COLS, namespaces=NAMESPACE):
             for elem in col:
                 yield elem
+
 
 def split_multiline(string=None, fail=True):
     obj = ET.fromstring(string)
@@ -125,7 +130,7 @@ def split_multiline(string=None, fail=True):
     for operator in OPERATORS:
         splits.extend(
             obj.findall(MULTILINE_SPLIT.format(operator),
-                namespaces=NAMESPACE)
+                        namespaces=NAMESPACE)
         )
 
     if not splits:
@@ -189,7 +194,7 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 lengths = list([len(part) for part in parts])
                 normalize = 1.0 * sum(lengths)
                 ratios = list([l / normalize for l in lengths])
-                deviations = list([min(len(ratios) * r, 1.0/(r * len(ratios))) for r in ratios])
+                deviations = list([min(len(ratios) * r, 1.0 / (r * len(ratios))) for r in ratios])
                 parts = [part for part, dev in zip(parts, deviations) if dev > 0.25]
                 # print(deviations)
                 # asdfa
@@ -197,7 +202,7 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 if z is None:
                     # del eqs[other_eq]
                     continue
-                #filter parts that are too small
+                # filter parts that are too small
                 part_a, part_b = np.random.choice(parts, size=2, replace=False)
                 part_c = np.random.choice(z)
                 try:
