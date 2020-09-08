@@ -39,5 +39,5 @@ class ShuffleHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch
             self.custom_seed = i
         seed(self.custom_seed * 12345)
         np.random.seed(self.custom_seed * 12345)
-        self.seed = randint(0, 100000)
+        self.custom_seed = randint(0, 100000)
         self.setup_iterator()

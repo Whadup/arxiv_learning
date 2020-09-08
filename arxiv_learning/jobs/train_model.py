@@ -2,7 +2,7 @@ import datetime
 import torch
 import os
 import torch.optim as optim
-from torch_geometric.nn import GatedGraphConv
+from torch_geometric.nn import GatedGraphConv, GraphConv, FeaStConv, GATConv
 from torch_scatter import scatter_min
 import tqdm
 from sacred import Experiment
@@ -50,6 +50,59 @@ class Head(torch.nn.Module):
         pass
     def reset_metrics(self):
         pass
+
+class InfoNCEHead(Head):
+    def __init__(self, model, width=512, output_dim=64, tau=0.05):
+
+        super().__init__(model)
+        self.width = width
+        self.output_dim = output_dim
+        self.tau = tau
+        self.output = torch.nn.Linear(self.width, self.output_dim)
+        self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
+    def reset_metrics(self):
+        self.example_cnt = 0
+        self.running_accuracy = 0
+        self.running_loss = 0
+
+    def metrics(self):
+        return {
+            "Number-Examples": self.example_cnt,
+            "InfoNCE-Loss": round(self.running_loss / (1 if self.example_cnt < 1 else self.example_cnt), 4),
+            "Accuracy": round(self.running_accuracy / (1 if self.example_cnt < 1 else self.example_cnt), 4)
+        }
+
+    def forward(self, data):
+        x = self.model(data)
+        if hasattr(data, "batch"):
+            emb = scatter_mean(x, data.batch, dim=0)
+        else:
+            emb = x.mean(dim=0, keepdim=True)
+        emb = self.output(emb)
+        norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
+        emb = emb.div(norm.expand_as(emb))
+
+        batch_size = data.num_graphs // 2
+
+        emb = emb.view(batch_size, 2, -1)
+        out1 = emb[:, 0, :]
+        out2 = emb[:, 1, :]
+        sims = torch.matmul(out1, out2.transpose(0, 1)) / self.tau
+        gt = torch.arange(0, batch_size, dtype=torch.long, device=sims.get_device())
+        # print(sims.shape, gt.shape)
+        # print(gt)
+        loss = self.loss_function(sims, gt)
+        
+        acc = (gt == torch.max(sims, dim=1)[1])
+        loss = torch.mean(loss)
+        actual_batch_size = sims.shape[0]
+        self.running_accuracy += acc.sum().item()
+        self.running_loss += loss.item()*sims.shape[0]
+        self.example_cnt += actual_batch_size
+
+        self.target = loss
 
 class HistogramLossHead(Head):
     def __init__(self, model, width=512, output_dim=64):
@@ -245,10 +298,10 @@ class BinaryClassificationHead(Head):
         self.target = loss.mean()
 
 SACRED_EXPERIMENT = Experiment(name="train_model_{}".format(datetime.date.today().isoformat()))
-MODEL_PATH = "checkpoints/"
+MODEL_PATH = "/data/s1/pfahler/arxiv_v2/checkpoints/"
 from sacred.observers import MongoObserver
 
-SACRED_EXPERIMENT.observers.append(MongoObserver.create(url='mongodb://lukas:lukas@s876pn04:27017'))
+# SACRED_EXPERIMENT.observers.append(MongoObserver.create(url='mongodb://lukas:lukas@s876pn04:27017'))
 SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
 
 @SACRED_EXPERIMENT.capture
@@ -262,40 +315,28 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
     DATA_AUGMENTATION = data_augmentation
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    width = 256
+    width = 768
 
+    # net = GraphCNN(width=width, layer=GraphConv, args=(width, ))
     net = GraphCNN(width=width, layer=GatedGraphConv, args=(2,))
-    # criterion = losses.HistogramLoss(weighted=False).to(device)
+    # net = GraphCNN(width=width, layer=FeaStConv, args=(width, 6),)
+    # net = GraphCNN(width=width, layer=GATConv, args=(width, 6),)
+
     # torch.set_default_dtype(torch.float16)
     net = net.to(device)
 
     heuristics = {
         "equalities": {
+            # "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
-            "head": RelationTypeHead,
-            "head_kwargs": {"width": width, "hidden_dim": 128}
+            "head": InfoNCEHead,
+            "head_kwargs": {"width": width}
 
         },
-        "same_paper": {
-            "data_set": arxiv_learning.data.heuristics.context.SamePaper,
-            "head": HistogramLossHead,
-            "head_kwargs": {"width": width, "output_dim": 64}
-        },
-        "same_section": {
-            "data_set": arxiv_learning.data.heuristics.context.SamePaper,
-            "head": HistogramLossHead,
-            "head_kwargs": {"width": width, "output_dim": 64}
-        },
-        "shuffle": {
-            "data_set": arxiv_learning.data.heuristics.shuffle.ShuffleHeuristic,
-            "head": BinaryClassificationHead,
-            "head_kwargs": {"width": width},
-            "blowout": 3
-        }
     }
 
-    trainloader = RayManager(total=1000, blowout=8, custom_heuristics=heuristics)
-    testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics)
+    trainloader = RayManager(total=10000, blowout=10, custom_heuristics=heuristics)
+    testloader = RayManager(test=True, total=1000, blowout=8, custom_heuristics=heuristics)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
@@ -349,13 +390,13 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
                                         sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
                                     else:
                                         sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
-            if i % loss_log_interval != loss_log_interval - 1:
-                for dataset, head in heads.items():
-                    for metric, value in head.metrics().items():
-                        if loader is testloader:
-                            sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
-                        else:
-                            sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
+            print()
+            for dataset, head in heads.items():
+                for metric, value in head.metrics().items():
+                    if loader is testloader:
+                        sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
+                    else:
+                        sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
         net.save_checkpoint(epoch)
         sacred_experiment.add_artifact(net.checkpoint_string.format(epoch))
         # scheduler.step()

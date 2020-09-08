@@ -29,9 +29,8 @@ class Heuristic(object):
             self.archive = zipfile.ZipFile(self.basefile, "r")
         self.data = self.archive.namelist()
         if (not test and "train" not in self.basefile) or (test and "test" not in self.basefile):
-            # TODO: Group according to paper, shuffle papers and take 1/5th of papers
             self.data = sorted(self.data)
-            cutoff = len(self.data) // 5
+            # cutoff = len(self.data) // 5
             if test:
                 self.data = list([x for i, x in enumerate(self.data) if not i % 5])
             else:
@@ -44,9 +43,9 @@ class Heuristic(object):
 
     def setup_iterator(self):
         if GZIP:
-            self.generator = iter(self.batch_and_pickle(iter(torch_geometric.data.DataLoader(self, batch_size=3*128)), batch_size=1))
+            self.generator = iter(self.batch_and_pickle(iter(torch_geometric.data.DataLoader(self, batch_size=3*64)), batch_size=1))
         else:
-            self.generator = iter(torch_geometric.data.DataLoader(self, batch_size=3*128))
+            self.generator = iter(torch_geometric.data.DataLoader(self, batch_size=3*64))
 
     def batch_and_pickle(self, generator, batch_size=128):
         import pickle, gzip, io

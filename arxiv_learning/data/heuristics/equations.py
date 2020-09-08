@@ -99,7 +99,7 @@ def split(string=None, fail=True):
 class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
+        self.custom_seed = None
     def __iter__(self):
         while True:
             i = np.random.choice(len(self.data))
@@ -108,12 +108,11 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 # print("continue1")
 
                 continue
-            pair = sample_equation(paper, size=2)
-            if pair is None:
+            eq = sample_equation(paper)
+            if eq is None:
                 # del self.papers[i]
                 # print("continue2")
                 continue
-            eq, other_eq = pair
             try:
                 parts = split(string=eq)
                 if parts is None:
@@ -129,23 +128,23 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 parts = [part for part, dev in zip(parts, deviations) if dev > 0.25]
                 # print(deviations)
                 # asdfa
-                z = split(string=other_eq, fail=False)
-                if z is None:
-                    # del eqs[other_eq]
-                    continue
+                # z = split(string=other_eq, fail=False)
+                # if z is None:
+                #     # del eqs[other_eq]
+                #     continue
                 #filter parts that are too small
-                part_a, part_b = np.random.choice(parts, size=2)
-                part_c = np.random.choice(z)
+                part_a, part_b = np.random.choice(parts, size=2, replace=False)
+                # part_c = np.random.choice(z)
                 try:
                     x = load_mathml.load_pytorch(part_a, self.alphabet)
                     y = load_mathml.load_pytorch(part_b, self.alphabet)
-                    z = load_mathml.load_pytorch(part_c, self.alphabet)
+                    # z = load_mathml.load_pytorch(part_c, self.alphabet)
                     x.y = torch.LongTensor([[0]])
                     y.y = torch.LongTensor([[0]])
-                    z.y = torch.LongTensor([[1]])
+                    # z.y = torch.LongTensor([[1]])
                     yield x
                     yield y
-                    yield z
+                    # yield z
                     # self.item = (x,y,z)
                     # return self.item
                 except Exception as identifier:
@@ -158,3 +157,12 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 # print(eq)
                 # print(other_eq)
                 # raise identifier
+
+    def seed(self, i):
+        from random import seed
+        if self.custom_seed == None:
+            self.custom_seed = i
+        seed(self.custom_seed * 12345)
+        np.random.seed(self.custom_seed * 12345)
+        self.custom_seed = randint(0, 100000)
+        self.setup_iterator()

@@ -8,7 +8,8 @@ from arxiv_learning.nn.positional_embeddings import init_positional_embeddings
 from arxiv_learning.nn.softnormalization import SoftNormalization
 
 class GraphCNN(torch.nn.Module):
-    def __init__(self, layers=4, width=512, layer=GraphConv, args=(512,), kwargs={"aggr": "mean"}):
+    def __init__(self, layers=4, width=512, layer=GraphConv, args=(512,), kwargs={}):
+    #  kwargs={"aggr": "mean"}):
         super(GraphCNN, self).__init__()
         self.width = width
         self.layers = layers

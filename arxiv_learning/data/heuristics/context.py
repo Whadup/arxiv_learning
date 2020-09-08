@@ -56,10 +56,10 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
                 continue
             x, y = pair
             # print(x)
-            j = (i + randint(0, len(self.data)-1)) % len(self.data)
-            other_paper = load_json(self.archive, self.data[j])
-            if other_paper is None:
-                continue
+            # j = (i + randint(0, len(self.data)-1)) % len(self.data)
+            # other_paper = load_json(self.archive, self.data[j])
+            # if other_paper is None:
+            #     continue
             # if self.data[j] not in self.cache:
             #     other_paper = load_json(self.archive, self.data[j])
             #     if other_paper is None:
@@ -67,24 +67,24 @@ class SamePaper(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.
             #     self.cache[self.data[j]] = sum([
             #         [eq["mathml"] for eq in section["equations"] if "mathml" in eq] for section in other_paper["sections"]]
             #         , [])
-            z = sample_equation(other_paper) #, cache=self.cache[self.data[j]])
-            if z is None:
-                continue
+            # z = sample_equation(other_paper) #, cache=self.cache[self.data[j]])
+            # if z is None:
+            #     continue
             # print(z)
             try:
                 x = load_mathml.load_pytorch(x, self.alphabet)
                 y = load_mathml.load_pytorch(y, self.alphabet)
-                z = load_mathml.load_pytorch(z, self.alphabet)
+                # z = load_mathml.load_pytorch(z, self.alphabet)
             except:
                 continue
             if self.permute:
                 yield permute(x, self.perms)
                 yield permute(y, self.perms)
-                yield permute(z, self.perms)
+                # yield permute(z, self.perms)
             else:
                 yield x
                 yield y
-                yield z
+                # yield z
 
 
 
