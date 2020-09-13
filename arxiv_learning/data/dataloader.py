@@ -17,13 +17,14 @@ DIFFERENT_PAPER = 4
 
 class RayManager():
 
-    def __init__(self, custom_heuristics=None, total=100, blowout=1, test=False):
+    def __init__(self, custom_heuristics=None, total=100, batch_size=128, blowout=1, test=False):
         # ray.init(address="129.217.30.174:6379")
         ray.init(address="auto", ignore_reinit_error=True)
         # ray.init(address='auto', redis_password='5241590000000000')
         # ray.init()
         self.total = total
         self.blowout = blowout
+        self.batch_size = batch_size
         self.test = test
         if custom_heuristics is not None:
             self.heuristics = custom_heuristics
@@ -46,7 +47,7 @@ class RayManager():
             }
         self.heuristics = {
             "{}/{}".format(k, i) : {
-                "data_set" : v["data_set"].remote(test=self.test),
+                "data_set" : v["data_set"].remote(test=self.test, batch_size=self.batch_size),
                 "head" : v["head"]
             }
             for k, v in self.heuristics.items()

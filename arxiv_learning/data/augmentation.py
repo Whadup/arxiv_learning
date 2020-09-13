@@ -10,7 +10,7 @@ def prepare_permutations(vocabulary):
     perms = []
     for i in range(10000):
         perm = torch.arange(VOCAB_SYMBOLS)
-        for _ in range(np.random.poisson(32)):
+        for _ in range(np.random.poisson(64)):
             a, b = np.random.choice(math_identifiers, size=2)
             tmp = perm[a]
             perm[a] = perm[b]

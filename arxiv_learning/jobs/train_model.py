@@ -334,9 +334,9 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
 
         },
     }
-
-    trainloader = RayManager(total=10000, blowout=10, custom_heuristics=heuristics)
-    testloader = RayManager(test=True, total=1000, blowout=8, custom_heuristics=heuristics)
+    batch_size = 256
+    trainloader = RayManager(total=1000, blowout=10, custom_heuristics=heuristics, batch_size=batch_size)
+    testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics, batch_size=768)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
@@ -358,7 +358,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
         bars[head].refresh()
     for epoch in range(epochs):  # loop over the dataset multiple times
         for loader in [trainloader, testloader]:
-            with tqdm.tqdm(total=loader.total * 128, ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
+            with tqdm.tqdm(total=loader.total * batch_size, ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
 
                 pbar.set_description("epoch {}/{}".format(epoch+1, epochs))
                 if loader == testloader:
@@ -377,7 +377,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
                         if loader is trainloader:
                             heads[dataset].backward()
 
-                        pbar.update(128)
+                        pbar.update(batch_size)
                         # pbar.set_description("epoch [{}/{}] - loss {:.4f} ({:.4f}) [{:.3f}, {:.3f}%]"
                         #     .format(epoch+1, epochs, running_loss/example_cnt, smooth_running_loss,
                         #         multitask_loss/example_cnt, running_accuracy/example_cnt))

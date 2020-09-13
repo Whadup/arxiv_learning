@@ -13,9 +13,10 @@ GZIP = False
 
 
 class Heuristic(object):
-    def __init__(self, basefile="/data/s1/pfahler/arxiv_v2/json_db.zip", test=False):
+    def __init__(self, basefile="/data/s1/pfahler/arxiv_v2/json_db.zip", test=False, batch_size=128):
     # def __init__(self, basefile="/home/pfahler/arxiv_learning/subset_ml_train.zip", test=False):
         self.basefile = basefile
+        self.batch_size = batch_size
         # self.basefile = "/data/s1/pfahler/arxiv_processed/json_db.zip"
         self.alphabet = load_mathml.load_alphabet(os.path.abspath(
             os.path.join(os.path.split(self.basefile)[0], "vocab.pickle")))
@@ -45,7 +46,7 @@ class Heuristic(object):
         if GZIP:
             self.generator = iter(self.batch_and_pickle(iter(torch_geometric.data.DataLoader(self, batch_size=3*64)), batch_size=1))
         else:
-            self.generator = iter(torch_geometric.data.DataLoader(self, batch_size=3*64))
+            self.generator = iter(torch_geometric.data.DataLoader(self, batch_size=self.batch_size))
 
     def batch_and_pickle(self, generator, batch_size=128):
         import pickle, gzip, io
