@@ -20,6 +20,7 @@ import arxiv_learning.nn.loss as losses
 from arxiv_learning.nn.scheduler import WarmupLinearSchedule
 from arxiv_learning.jobs.gitstatus import get_repository_status
 from numpy import round
+import numpy as np
 import contextlib
 
 @contextlib.contextmanager
@@ -50,6 +51,74 @@ class Head(torch.nn.Module):
         pass
     def reset_metrics(self):
         pass
+
+class BYOLHead(Head):
+    def __init__(self, model, width=512, output_dim=64, tau=0.05):
+        from copy import deepcopy
+        super().__init__(model)
+        self.width = width
+        self.output_dim = output_dim
+        self.tau = tau
+        self.output = torch.nn.Linear(self.width, self.output_dim)
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
+        self.target_model = deepcopy(model)
+        self.target_output = deepcopy(self.output)
+        for param in self.target_model.parameters():
+            param.requires_grad = False
+        for param in self.target_output.parameters():
+            param.requires_grad = False
+    def reset_metrics(self):
+        self.example_cnt = 0
+        # self.running_accuracy = 0
+        self.running_loss = 0
+
+    def metrics(self):
+        return {
+            "Number-Examples": self.example_cnt,
+            "MSE-Loss": round(self.running_loss / (1 if self.example_cnt < 1 else self.example_cnt), 4),
+            # "Accuracy": round(self.running_accuracy / (1 if self.example_cnt < 1 else self.example_cnt), 4)
+        }
+
+    def forward(self, data):
+        for u,v in zip(self.target_model.parameters(), self.model.parameters()):
+            u.data = 0.99 * u.data + 0.01 * v.data.detach()
+        for u,v in zip(self.target_output.parameters(), self.output.parameters()):
+            u.data = 0.99 * u.data + 0.01 * v.data.detach()
+
+        x = self.model(data)
+        x2 = self.target_model(data)
+        if hasattr(data, "batch"):
+            emb = scatter_mean(x, data.batch, dim=0)
+            emb2 = scatter_mean(x2, data.batch, dim=0)
+        else:
+            emb = x.mean(dim=0, keepdim=True)
+            emb2 = x2.mean(dim=0, keepdim=True)
+        emb = self.output(emb)
+        emb2 = self.target_output(emb2)
+        emb2 = emb2.detach()
+
+        norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
+        norm2 = torch.norm(emb2, dim=1, keepdim=True) + 1e-8
+        emb = emb.div(norm.expand_as(emb))
+        emb2 = emb2.div(norm2.expand_as(emb2))
+
+        batch_size = data.num_graphs // 2
+
+        emb = emb.view(batch_size, 2, -1)
+        emb2 = emb2.view(batch_size, 2, -1)
+        out1 = emb[:, 0, :]
+        out2 = emb2[:, 1, :]
+
+        diff = out1 - out2
+        loss = (diff * diff).sum(dim=1)
+        loss = torch.mean(loss)
+        actual_batch_size = out1.shape[0]
+        self.running_loss += loss.item() * out1.shape[0]
+        self.example_cnt += actual_batch_size
+        self.target = loss
+
+        return emb
 
 class InfoNCEHead(Head):
     def __init__(self, model, width=512, output_dim=64, tau=0.05):
@@ -103,6 +172,7 @@ class InfoNCEHead(Head):
         self.example_cnt += actual_batch_size
 
         self.target = loss
+        return emb
 
 class HistogramLossHead(Head):
     def __init__(self, model, width=512, output_dim=64):
@@ -304,21 +374,60 @@ from sacred.observers import MongoObserver
 # SACRED_EXPERIMENT.observers.append(MongoObserver.create(url='mongodb://lukas:lukas@s876pn04:27017'))
 SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
 
+
+def test_model(model, test_loader, head, batch_size, device="cuda"):
+    from annoy import AnnoyIndex
+    index = AnnoyIndex(head.output_dim, "dot")
+    model = model.eval()
+    total = 0
+    with tqdm.tqdm(total=test_loader.total * batch_size, ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
+        pbar.set_description("testing")
+        with torch.no_grad():
+            for data in test_loader:
+                dataset, data = data
+                data = data.to(device)
+                embeddings = head.forward(data)
+                for i, e in enumerate(embeddings.cpu().numpy()):
+                    index.add_item(total * 2, e[0, :])
+                    index.add_item(total * 2 + 1, e[1, :])
+                    total += 1
+                pbar.update(embeddings.shape[0])
+    index.build(16)
+    index.save("tmp.ann")
+    fail = 0
+    ranks = []
+    for i in tqdm.tqdm(range(total)):
+        results = index.get_nns_by_item(2 * i, 1000)[1:]
+        results = np.array(results) // 2
+        rank = np.argwhere(results == i)
+        if not len(rank):
+            fail += 1
+        else:
+            ranks.append(rank[0])
+    ranks = np.array(ranks)
+    recall_at_1 = (ranks < 1).sum() / (1.0 * len(ranks) + fail)
+    recall_at_10 = (ranks < 10).sum() / (1.0* len(ranks) + fail)
+    recall_at_100 = (ranks < 100).sum() / (1.0 * len(ranks) + fail)
+    #TODO: Log to Sacred
+    print("RANKS: mean {}, fails {}, recall@1 {}, recall@10 {} recall@100 {}".format(
+        ranks.mean(), fail, recall_at_1, recall_at_10, recall_at_100))
+
+
+    model = model.train()
+
 @SACRED_EXPERIMENT.capture
 def train_model(batch_size, learning_rate, epochs, masked_language_training, data_augmentation, sacred_experiment):
     """
     train a model
     """
     global MASKED_LANGUAGE_TRAINING
-    global DATA_AUGMENTATION
     MASKED_LANGUAGE_TRAINING = masked_language_training
-    DATA_AUGMENTATION = data_augmentation
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     width = 768
 
     # net = GraphCNN(width=width, layer=GraphConv, args=(width, ))
-    net = GraphCNN(width=width, layer=GatedGraphConv, args=(2,))
+    net = GraphCNN(width=width, layer=GatedGraphConv, args=(3,))
     # net = GraphCNN(width=width, layer=FeaStConv, args=(width, 6),)
     # net = GraphCNN(width=width, layer=GATConv, args=(width, 6),)
 
@@ -329,14 +438,14 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
         "equalities": {
             # "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
-            "head": InfoNCEHead,
+            "head": BYOLHead,
             "head_kwargs": {"width": width}
 
         },
     }
     batch_size = 256
-    trainloader = RayManager(total=1000, blowout=10, custom_heuristics=heuristics, batch_size=batch_size)
-    testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics, batch_size=768)
+    trainloader = RayManager(total=100, blowout=10, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
+    testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics, batch_size=768, data_augmentation=data_augmentation)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
@@ -357,7 +466,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
         bars[head] = tqdm.tqdm(bar_format=" ⮑  " + "{:<14}".format(head+":") + " {desc}", position=1 + i)
         bars[head].refresh()
     for epoch in range(epochs):  # loop over the dataset multiple times
-        for loader in [trainloader, testloader]:
+        for loader in [trainloader]:
             with tqdm.tqdm(total=loader.total * batch_size, ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
 
                 pbar.set_description("epoch {}/{}".format(epoch+1, epochs))
@@ -399,6 +508,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
                         sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
         net.save_checkpoint(epoch)
         sacred_experiment.add_artifact(net.checkpoint_string.format(epoch))
+        test_model(net, testloader, heads["equalities"], 768, device)
         # scheduler.step()
     net.to("cpu")
     net.save()

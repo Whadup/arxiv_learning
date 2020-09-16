@@ -13,7 +13,7 @@ GZIP = False
 
 
 class Heuristic(object):
-    def __init__(self, basefile="/data/s1/pfahler/arxiv_v2/json_db.zip", test=False, batch_size=128):
+    def __init__(self, basefile="/data/s1/pfahler/arxiv_v2/json_db.zip", test=False, batch_size=128, data_augmentation=False):
     # def __init__(self, basefile="/home/pfahler/arxiv_learning/subset_ml_train.zip", test=False):
         self.basefile = basefile
         self.batch_size = batch_size

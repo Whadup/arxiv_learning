@@ -9,7 +9,7 @@ import arxiv_learning.data.heuristics.heuristic
 import arxiv_learning.data.load_mathml as load_mathml
 from arxiv_learning.data.heuristics.context import sample_equation, load_json
 from  arxiv_learning.data.augmentation import permute, prepare_permutations
-from arxiv_learning.flags import DATA_AUGMENTATION
+# from arxiv_learning.flags import DATA_AUGMENTATION
 
 
 NAMESPACE = {"mathml": "http://www.w3.org/1998/Math/MathML"}
@@ -185,10 +185,10 @@ def split(string=None, fail=True):
 
 @ray.remote
 class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torch.utils.data.IterableDataset):
-    def __init__(self, permute=False, *args, **kwargs):
+    def __init__(self, data_augmentation=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.permute = False # only permute during training
-        if DATA_AUGMENTATION and not self.test:
+        if data_augmentation and not self.test:
             self.permute = True
             self.perms = prepare_permutations(self.alphabet)
         self.custom_seed = None
