@@ -25,7 +25,7 @@ class GraphCNN(torch.nn.Module):
             [
                 layer(self.width, *args, **kwargs),
                 BatchNorm1d(self.width),
-                torch.nn.ReLU()
+                torch.nn.SELU()
             ] for i in range(layers)
             ], []))
         

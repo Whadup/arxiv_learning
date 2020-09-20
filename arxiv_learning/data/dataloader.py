@@ -101,4 +101,6 @@ class RayManager():
                 self.round = queue
         # empty everything
         if self.round:
+            # for x in self.round:
+            #     ray.cancel(x)
             ray.get(ray.wait(self.round, num_returns=len(self.round))[0])

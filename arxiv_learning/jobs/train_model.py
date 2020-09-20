@@ -17,11 +17,13 @@ from arxiv_learning.data.load_mathml import VOCAB_SYMBOLS
 from torch_scatter import scatter_min, scatter_mean
 from arxiv_learning.nn.graph_cnn import GraphCNN
 import arxiv_learning.nn.loss as losses
+import arxiv_learning.nn.lars
 from arxiv_learning.nn.scheduler import WarmupLinearSchedule
 from arxiv_learning.jobs.gitstatus import get_repository_status
 from numpy import round
 import numpy as np
 import contextlib
+# from quantiler.quantiler import Quantiler
 
 @contextlib.contextmanager
 def null():
@@ -59,62 +61,160 @@ class BYOLHead(Head):
         self.width = width
         self.output_dim = output_dim
         self.tau = tau
-        self.output = torch.nn.Linear(self.width, self.output_dim)
-        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
-        self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
+        self.output = torch.nn.Linear(self.width, self.output_dim, bias=False)
+        self.mlp1 = torch.nn.Linear(self.output_dim, 1024, bias=False)
+        self.mlp2 = torch.nn.Linear(1024, self.output_dim, bias=False)
+        self.mlpbn = torch.nn.BatchNorm1d(1024)
+        self.normalizer = torch.nn.BatchNorm1d(self.width)
+        print(list(self.named_parameters()))
+        self.optimizer = optim.Adam(self.parameters(), lr=0.01)
+        # self.optimizer = arxiv_learning.nn.lars.LARS(self.parameters(), lr=3.2, eta=1e-3, )
+        
+        self.scheduler = None #WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
         self.target_model = deepcopy(model)
-        self.target_output = deepcopy(self.output)
+        self.target_output = torch.nn.Linear(self.width, self.output_dim, bias=False)
+        self.target_normalizer = torch.nn.BatchNorm1d(self.width, track_running_stats=False)#.eval()
+
+        for layer in self.target_model.modules():
+            if hasattr(layer, 'reset_parameters'):
+                print("reset")
+                layer.reset_parameters()
+
         for param in self.target_model.parameters():
             param.requires_grad = False
         for param in self.target_output.parameters():
+            param.requires_grad = False
+        for param in self.target_normalizer.parameters():
             param.requires_grad = False
     def reset_metrics(self):
         self.example_cnt = 0
         # self.running_accuracy = 0
         self.running_loss = 0
+        
 
     def metrics(self):
         return {
             "Number-Examples": self.example_cnt,
             "MSE-Loss": round(self.running_loss / (1 if self.example_cnt < 1 else self.example_cnt), 4),
+            "Mean-Variance": self.normalizer.running_var.mean(),
             # "Accuracy": round(self.running_accuracy / (1 if self.example_cnt < 1 else self.example_cnt), 4)
         }
 
-    def forward(self, data):
-        for u,v in zip(self.target_model.parameters(), self.model.parameters()):
-            u.data = 0.99 * u.data + 0.01 * v.data.detach()
-        for u,v in zip(self.target_output.parameters(), self.output.parameters()):
-            u.data = 0.99 * u.data + 0.01 * v.data.detach()
+    def train(self, par=True):
+        print("set BYOL Head to Train=", par)
+        print(self.target_model.training, self.model.training, self.output.training, self.target_output.training)
+        ret = super().train(par)
+        # self.target_model = self.target_model.train(False)
+        # self.target_normalizer = self.target_normalizer.train(True)
+        # self.target_output = self.target_output.train(par)
+        print(self.target_model.training, self.model.training, self.output.training, self.target_output.training)
+        return ret
 
+    def uniformize(self, x2):
+        eta = 1024
+        tau = 1
+        before = None
+        for i in range(4):
+            x2 = torch.autograd.Variable(x2, requires_grad=True)
+            # print(x2.requires_grad)
+            K = 2.0 - 2 * torch.matmul(x2, x2.transpose(0, 1))
+            # print(K.requires_grad)
+            # K = 2.0 - x2.dot(x2.transpose(0, 1))
+            K = torch.exp(-tau * K)
+            loss = 1.0 / (x2.shape[0]**2) * K.sum()
+            # loss = -torch.log()
+            # print(loss.requires_grad)
+            if before is None:
+                before = loss
+            if not K.requires_grad:
+                return x2
+            loss.backward(retain_graph=True)
+            # print("gradnorm:", torch.norm(x2.grad))
+            x2 = x2 - eta * x2.grad
+            norm = torch.norm(x2, dim=1, keepdim=True) + 1e-8
+            x2 = x2.div(norm.expand_as(x2))
+            x2 = x2.detach()
+
+        K = 2.0 - 2 * torch.matmul(x2, x2.transpose(0, 1))
+        # print(K.requires_grad)
+        # K = 2.0 - x2.dot(x2.transpose(0, 1))
+        K = torch.exp(-tau * K)
+        loss = 1.0 / (x2.shape[0]**2) * K.sum()
+        print("\nLoss{} -> {}".format(before, loss))
+
+        return x2.detach()
+
+
+    def forward(self, data):
+        # MOVING AVERAGE
+        rho = 0.9
+        if self.model.training:
+            for (i,u), (j,v) in zip(self.target_model.named_parameters(), self.model.named_parameters()):
+                if i!=j:
+                    print(i, j)
+                u.data = rho * u.data + (1.0 - rho) * v.data.detach()
+            for u, v in zip(self.target_output.parameters(), self.output.parameters()):
+                u.data = rho * u.data + (1.0 - rho) * v.data.detach()
+            for u, v in zip(self.target_normalizer.parameters(), self.normalizer.parameters()):
+                u.data = rho * u.data + (1.0 - rho) * v.data.detach()
+
+        # INFERENCE
         x = self.model(data)
         x2 = self.target_model(data)
+        # print(x.shape[0]/4096.0)
+        # x = self.normalizer(x)
+        # x2 = self.target_normalizer(x2)
+
         if hasattr(data, "batch"):
             emb = scatter_mean(x, data.batch, dim=0)
             emb2 = scatter_mean(x2, data.batch, dim=0)
         else:
             emb = x.mean(dim=0, keepdim=True)
             emb2 = x2.mean(dim=0, keepdim=True)
+
+
+        # PROJECTION 
         emb = self.output(emb)
         emb2 = self.target_output(emb2)
-        emb2 = emb2.detach()
+
+        svs = np.linalg.svd(emb.detach().cpu().numpy(), compute_uv=False)
+        # print("\n",np.sum(svs / svs[0]))
+
+        # PREDICTION
+        emb = self.mlp1(torch.nn.functional.selu(emb))
+        emb = self.mlp2(torch.nn.functional.selu(self.mlpbn(emb)))
+
+
+        # emb = self.normalizer(emb)
+        # emb2 = self.target_normalizer(emb2)
 
         norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
         norm2 = torch.norm(emb2, dim=1, keepdim=True) + 1e-8
+        
         emb = emb.div(norm.expand_as(emb))
         emb2 = emb2.div(norm2.expand_as(emb2))
+
+        emb2 = emb2.detach()
+        emb2 = self.uniformize(emb2)
 
         batch_size = data.num_graphs // 2
 
         emb = emb.view(batch_size, 2, -1)
         emb2 = emb2.view(batch_size, 2, -1)
-        out1 = emb[:, 0, :]
-        out2 = emb2[:, 1, :]
 
-        diff = out1 - out2
-        loss = (diff * diff).sum(dim=1)
-        loss = torch.mean(loss)
-        actual_batch_size = out1.shape[0]
-        self.running_loss += loss.item() * out1.shape[0]
+        out11 = emb[:, 0, :]
+        out21 = emb2[:, 1, :]
+        out12 = emb[:, 1, :]
+        out22 = emb2[:, 0, :]
+
+        sim1 = torch.bmm(out11.view(-1, 1, self.output_dim),
+                                out21.view(-1, self.output_dim, 1)).view(-1)
+        sim2 = torch.bmm(out12.view(-1, 1, self.output_dim),
+                                out22.view(-1, self.output_dim, 1)).view(-1)
+        loss = (-2 * sim1  + -2 * sim2).mean()
+        # loss = torch.mean((diff1 * diff1).sum(dim=1)) + torch.mean((diff2 * diff2).sum(dim=1))
+        actual_batch_size = out11.shape[0] * 2
+        self.running_loss += loss.item() * actual_batch_size
         self.example_cnt += actual_batch_size
         self.target = loss
 
@@ -378,7 +478,8 @@ SACRED_EXPERIMENT.observers.append(FileStorageObserver.create(MODEL_PATH))
 def test_model(model, test_loader, head, batch_size, device="cuda"):
     from annoy import AnnoyIndex
     index = AnnoyIndex(head.output_dim, "dot")
-    model = model.eval()
+    # model = model.eval()
+    head = head.eval()
     total = 0
     with tqdm.tqdm(total=test_loader.total * batch_size, ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
         pbar.set_description("testing")
@@ -391,7 +492,7 @@ def test_model(model, test_loader, head, batch_size, device="cuda"):
                     index.add_item(total * 2, e[0, :])
                     index.add_item(total * 2 + 1, e[1, :])
                     total += 1
-                pbar.update(embeddings.shape[0])
+                pbar.update(embeddings.shape[0] * 2)
     index.build(16)
     index.save("tmp.ann")
     fail = 0
@@ -413,7 +514,8 @@ def test_model(model, test_loader, head, batch_size, device="cuda"):
         ranks.mean(), fail, recall_at_1, recall_at_10, recall_at_100))
 
 
-    model = model.train()
+    # model = model.train()
+    head = head.train()
 
 @SACRED_EXPERIMENT.capture
 def train_model(batch_size, learning_rate, epochs, masked_language_training, data_augmentation, sacred_experiment):
@@ -424,10 +526,10 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
     MASKED_LANGUAGE_TRAINING = masked_language_training
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    width = 768
+    width = 128
 
     # net = GraphCNN(width=width, layer=GraphConv, args=(width, ))
-    net = GraphCNN(width=width, layer=GatedGraphConv, args=(3,))
+    net = GraphCNN(width=width, layer=GatedGraphConv, args=(2,))
     # net = GraphCNN(width=width, layer=FeaStConv, args=(width, 6),)
     # net = GraphCNN(width=width, layer=GATConv, args=(width, 6),)
 
@@ -443,9 +545,9 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
 
         },
     }
-    batch_size = 256
-    trainloader = RayManager(total=100, blowout=10, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
-    testloader = RayManager(test=True, total=100, blowout=8, custom_heuristics=heuristics, batch_size=768, data_augmentation=data_augmentation)
+    batch_size = 4096
+    trainloader = RayManager(total=80, blowout=20, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
+    testloader = RayManager(test=True, total=200, blowout=20, custom_heuristics=heuristics, batch_size=256, data_augmentation=data_augmentation)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
@@ -459,7 +561,7 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
     loss_log_interval = 250
 
     heads = {
-        dataset : head["head"](net, **head.get("head_kwargs", {})).to(device) for dataset, head in heuristics.items()
+        dataset : head["head"](net, **head.get("head_kwargs", {})).to(device).train() for dataset, head in heuristics.items()
     }
     bars = {}
     for i, head in enumerate(heads):

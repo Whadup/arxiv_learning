@@ -17,6 +17,12 @@ class Heuristic(object):
     # def __init__(self, basefile="/home/pfahler/arxiv_learning/subset_ml_train.zip", test=False):
         self.basefile = basefile
         self.batch_size = batch_size
+        if not os.path.exists(basefile):
+            for replace in ["d1/","d2/","d0/","d4/", "d3/", ""]:
+                newfile = self.basefile.replace("s1/", replace)
+                if os.path.exists(newfile):
+                    break
+            self.basefile = newfile
         # self.basefile = "/data/s1/pfahler/arxiv_processed/json_db.zip"
         self.alphabet = load_mathml.load_alphabet(os.path.abspath(
             os.path.join(os.path.split(self.basefile)[0], "vocab.pickle")))
