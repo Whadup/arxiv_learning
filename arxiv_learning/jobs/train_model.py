@@ -2,6 +2,7 @@ import datetime
 import torch
 import os
 import torch.optim as optim
+from torch.nn.utils import clip_grad_norm_
 from torch_geometric.nn import GatedGraphConv, GraphConv, FeaStConv, GATConv
 from torch_scatter import scatter_min
 import tqdm
@@ -33,7 +34,7 @@ def replace_tabs(s):
     return ' '.join('%-4s' % item for item in s.split('\t'))
 
 class Head(torch.nn.Module):
-    def __init__(self, model, lr=0.0001, scheduler=None, scheduler_kwargs=None):
+    def __init__(self, model, lr=0.001, scheduler=None, scheduler_kwargs=None):
         super().__init__()
         self.model = model
         self.target = None
@@ -61,6 +62,7 @@ class BYOLHead(Head):
         self.width = width
         self.output_dim = output_dim
         self.tau = tau
+        self.eta = 512
         self.output = torch.nn.Linear(self.width, self.output_dim, bias=False)
         self.mlp1 = torch.nn.Linear(self.output_dim, 1024, bias=False)
         self.mlp2 = torch.nn.Linear(1024, self.output_dim, bias=False)
@@ -74,7 +76,6 @@ class BYOLHead(Head):
         self.target_model = deepcopy(model)
         self.target_output = torch.nn.Linear(self.width, self.output_dim, bias=False)
         self.target_normalizer = torch.nn.BatchNorm1d(self.width, track_running_stats=False)#.eval()
-
         for layer in self.target_model.modules():
             if hasattr(layer, 'reset_parameters'):
                 print("reset")
@@ -110,8 +111,8 @@ class BYOLHead(Head):
         print(self.target_model.training, self.model.training, self.output.training, self.target_output.training)
         return ret
 
-    def uniformize(self, x2):
-        eta = 1024
+    def uniformize(self, x2, eta=512):
+        # eta = 512
         tau = 1
         before = None
         for i in range(4):
@@ -143,11 +144,18 @@ class BYOLHead(Head):
         print("\nLoss{} -> {}".format(before, loss))
 
         return x2.detach()
-
+    def backward(self):
+        with torch.autograd.detect_anomaly():
+            self.target.backward()
+            clip_grad_norm_(self.model.parameters(), 16.0)
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            if self.scheduler:
+                self.scheduler.step()
 
     def forward(self, data):
         # MOVING AVERAGE
-        rho = 0.9
+        rho = 0.995
         if self.model.training:
             for (i,u), (j,v) in zip(self.target_model.named_parameters(), self.model.named_parameters()):
                 if i!=j:
@@ -195,8 +203,9 @@ class BYOLHead(Head):
         emb2 = emb2.div(norm2.expand_as(emb2))
 
         emb2 = emb2.detach()
-        emb2 = self.uniformize(emb2)
-
+        emb2 = self.uniformize(emb2, eta=self.eta)
+        if self.training:
+            self.eta *= 1.0 # 0.9995
         batch_size = data.num_graphs // 2
 
         emb = emb.view(batch_size, 2, -1)
@@ -219,7 +228,6 @@ class BYOLHead(Head):
         self.target = loss
 
         return emb
-
 class InfoNCEHead(Head):
     def __init__(self, model, width=512, output_dim=64, tau=0.05):
 
@@ -230,7 +238,7 @@ class InfoNCEHead(Head):
         self.output = torch.nn.Linear(self.width, self.output_dim)
         self.loss_function = torch.nn.CrossEntropyLoss(reduction="none")
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
-        self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
+        self.scheduler = WarmupLinearSchedule(self.optimizer, 50, 50 * 500)
     def reset_metrics(self):
         self.example_cnt = 0
         self.running_accuracy = 0
@@ -516,6 +524,7 @@ def test_model(model, test_loader, head, batch_size, device="cuda"):
 
     # model = model.train()
     head = head.train()
+    return recall_at_1, recall_at_10, recall_at_100
 
 @SACRED_EXPERIMENT.capture
 def train_model(batch_size, learning_rate, epochs, masked_language_training, data_augmentation, sacred_experiment):
@@ -526,10 +535,10 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
     MASKED_LANGUAGE_TRAINING = masked_language_training
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    width = 128
+    width = 256
 
     # net = GraphCNN(width=width, layer=GraphConv, args=(width, ))
-    net = GraphCNN(width=width, layer=GatedGraphConv, args=(2,))
+    net = GraphCNN(width=width, layer=GatedGraphConv, args=(5,))
     # net = GraphCNN(width=width, layer=FeaStConv, args=(width, 6),)
     # net = GraphCNN(width=width, layer=GATConv, args=(width, 6),)
 
@@ -540,14 +549,14 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
         "equalities": {
             # "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
-            "head": BYOLHead,
-            "head_kwargs": {"width": width}
+            "head": InfoNCEHead,
+            "head_kwargs": {"width": width, "output_dim": 256}
 
         },
     }
-    batch_size = 4096
-    trainloader = RayManager(total=80, blowout=20, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
-    testloader = RayManager(test=True, total=200, blowout=20, custom_heuristics=heuristics, batch_size=256, data_augmentation=data_augmentation)
+    batch_size = 1024
+    trainloader = RayManager(total=1024, blowout=30, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
+    testloader = RayManager(test=True, total=256, blowout=20, custom_heuristics=heuristics, batch_size=1024, data_augmentation=data_augmentation)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
@@ -608,9 +617,14 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
                         sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
                     else:
                         sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
+            # return
         net.save_checkpoint(epoch)
         sacred_experiment.add_artifact(net.checkpoint_string.format(epoch))
-        test_model(net, testloader, heads["equalities"], 768, device)
+        r1, r10, r100 = test_model(net, testloader, heads["equalities"], 256, device)
+        sacred_experiment.log_scalar("test.recall@1", r1)
+        sacred_experiment.log_scalar("test.recall@10", r10)
+        sacred_experiment.log_scalar("test.recall@100", r100)
+
         # scheduler.step()
     net.to("cpu")
     net.save()
@@ -632,7 +646,7 @@ def hyperparamters():
     batch_size = 256
     learning_rate = 0.0001
     # learning_rate = 0.001
-    epochs = 20
+    epochs = 50
     masked_language_training = True
     data_augmentation = True
 

@@ -3,6 +3,7 @@ from copy import deepcopy
 import itertools
 import numpy as np
 import torch
+import tempfile, json
 import ray
 import xml.etree.ElementTree as ET
 import arxiv_learning.data.heuristics.heuristic
@@ -42,7 +43,7 @@ SIZE_FACTOR = 0.3
 FACTOR_MAX = 1 + SIZE_FACTOR
 FACTOR_MIN = 1 - SIZE_FACTOR
 
-count_nodes = lambda e: len(e.findall(ALL_TAGS, NAMESPACE))
+count_nodes = lambda e: len(e[0].findall(ALL_TAGS, NAMESPACE))
 match_operator = lambda e: e.text in OPERATORS if e.text else False
 
 
@@ -50,6 +51,7 @@ def is_useful_subeq(eq):
     """
     Searches for any USEFUL_NODE in eq and returns True if it found one.
     """
+    eq = eq[0]
     for node in USEFUL_NODES:
         if eq.find(node, NAMESPACE):
             return True
@@ -65,6 +67,7 @@ def filter_size(results):
     Ensures that the length of the eqs in results do not deviate too much from the median.
     Eqs that deviate to much are removed from the list.
     """
+    
     results = sorted(results, key=count_nodes)
     median_index = int(len(results) / 2)
     if median_index < 1:
@@ -130,7 +133,16 @@ def split_single(string):
         results = itertools.groupby(main_row, match_operator)
         # groupby returns a tuple. Index 0 reports whether the object at index 1 was matched
         # by the lambda given to groupby.
-        results = [construct_tree(split[1]) for split in results if not split[0]]
+        new_results = []
+        for split in results:
+            if not split[0]:
+                s = construct_tree(split[1])
+                new_results.append((s, None))
+            else:
+                new_results[-1] = (new_results[-1][0], split[1])
+
+        # results = [construct_tree(split[1]) for split in results if not split[0]]
+        return new_results
     return results
 
 
@@ -156,13 +168,13 @@ def split_multiline(string):
     for elem in iterate_table(obj):
         if elem in splits:
             newroot = subtree(obj, current)
-            results.append(newroot.getroot())
+            results.append((newroot.getroot(), elem))
             count += 1
             current = []
         else:
             current.append(elem)
     newroot = subtree(obj, current)
-    results.append(newroot.getroot())
+    results.append((newroot.getroot(), None))
 
     return results
 
@@ -178,9 +190,9 @@ def split(string=None, fail=True):
     results = filter_useful(results)
     results = filter_size(results)
     if not results or len(results) < 2:
-        return None if fail else [string]
+        return None if fail else [(string, None)]
     else:
-        return [ET.tostring(result, encoding="unicode") for result in results]
+        return [(ET.tostring(result, encoding="unicode"), sign) for result, sign in results]
 
 
 @ray.remote
@@ -192,6 +204,7 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
             self.permute = True
             self.perms = prepare_permutations(self.alphabet)
         self.custom_seed = None
+        self.output_file = tempfile.NamedTemporaryFile("w", dir="/home/pfahler/", suffix="_{}.eq".format("test" if self.test else "train"))
     def __iter__(self):
         while True:
             i = np.random.choice(len(self.data))
@@ -206,13 +219,15 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 # print("continue2")
                 continue
             try:
-                parts = split(string=eq)
-                if parts is None:
+                splitting = split(string=eq)
+                if splitting is None:
 
                     # del eqs[j]
                     # print("continue3")
 
                     continue
+                parts, signs = zip(*splitting)
+                # print(list([e.text for e in signs if e is not None]))
                 # lengths = list([len(part) for part in parts])
                 # normalize = 1.0 * sum(lengths)
                 # ratios = list([l / normalize for l in lengths])
@@ -225,7 +240,10 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                 #     # del eqs[other_eq]
                 #     continue
                 #filter parts that are too small
-                part_a, part_b = np.random.choice(parts, size=2, replace=False)
+                i = np.random.choice(len(parts)-1)
+                part_a, part_b = parts[i], parts[i + 1]
+                self.output_file.write(json.dumps(dict(part_a=part_a, part_b=part_b, sign=signs[i].text))+"\n")
+                self.output_file.flush()
                 # part_c = np.random.choice(z)
                 try:
                     x = load_mathml.load_pytorch(part_a, self.alphabet)
@@ -249,8 +267,8 @@ class EqualityHeuristic(arxiv_learning.data.heuristics.heuristic.Heuristic, torc
                     # print(type(identifier), identifier)
                     # raise identifier
             except Exception as identifier:
-                pass
                 # print(type(identifier), identifier)
+                pass
                 # print(eq)
                 # print(other_eq)
                 # raise identifier
