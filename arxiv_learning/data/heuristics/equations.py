@@ -36,7 +36,7 @@ USEFUL_NODES = [MO, MFRAC, MSQRT, MROOT]
 MROW_TEMPLATE = ET.fromstring(
     "<?xml version=\"1.0\" ?><span><math xmlns=\"http://www.w3.org/1998/Math/MathML\">" + "<semantics><mrow></mrow></semantics></math></span>")
 
-OPERATORS = "=≤≥<>"
+OPERATORS = "≤<" #"=≤≥<>"
 # Two eqs should not differ to much in their length. So the length of the eqs should not deviate
 # more than SIZE_FACTOR from the median of all lengths. (See function filter_size())
 SIZE_FACTOR = 0.3

@@ -2,6 +2,7 @@ import io
 import os
 import pickle
 import gzip
+import json
 import zipfile
 import arxiv_learning.data.load_mathml as load_mathml
 import torch_geometric.data
@@ -37,11 +38,15 @@ class Heuristic(object):
         self.data = self.archive.namelist()
         if (not test and "train" not in self.basefile) or (test and "test" not in self.basefile):
             self.data = sorted(self.data)
+            print("FILTERING FOR TEST DATA FOR STEFAN!")
+            test_papers = set(json.load(open("test_papers_meta.json", "r")).keys())
+            self.data = [x for x in self.data if os.path.basename(x).replace(".json", "") in test_papers]
+            # print(self.data[:100])
             # cutoff = len(self.data) // 5
             if test:
-                self.data = list([x for i, x in enumerate(self.data) if not i % 5])
+                self.data = list([x for i, x in enumerate(self.data) if not i % 2])
             else:
-                self.data = list([x for i, x in enumerate(self.data) if i % 5])
+                self.data = list([x for i, x in enumerate(self.data) if i % 2])
         if len(self.data) > 250000:
             self.data = npr.choice(self.data, size=250000, replace=False)
         # print(npr.randint(1000))
