@@ -8,3 +8,4 @@ checkpoints/
 *.pt
 eval.csv
 tmp.ann
+experiments
