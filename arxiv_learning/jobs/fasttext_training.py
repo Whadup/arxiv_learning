@@ -56,7 +56,7 @@ def fine_tune(data, model, epoch=1, dim=64, tau=0.05):
         torch.nn.Linear(model.get_dimension(), dim)
     )
     optimizer = torch.optim.Adam(head.parameters(), tau)
-    dataloader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(X1, X2), batch_size=1024, drop_last=True)
+    dataloader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(X1, X2), batch_size=1024, drop_last=True, shuffle=True)
     labels = torch.arange(1024)
     lossfunction = torch.nn.CrossEntropyLoss()
     for i in range(epoch):
@@ -67,10 +67,10 @@ def fine_tune(data, model, epoch=1, dim=64, tau=0.05):
             y = y / (1e-6 + torch.norm(x, dim=1, keepdim=True))
             sims = torch.matmul(x, y.transpose(0, 1)) / tau
             loss = lossfunction(sims, labels)
-            print(loss.item())
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
+    print(loss.item())
     return head
 
 def test(model, finetuned_model, data):
@@ -116,17 +116,19 @@ def test(model, finetuned_model, data):
     return dict(mean_rank=ranks.mean(), fails=fail, fail_ratio=fail / (1.0 * len(ranks) + fail), recall_at_1=recall_at_1, recall_at_10=recall_at_10, recall_at_100=recall_at_100)
 
 def main():
-    for epochs in [1, 3, 5, 10]:
-        for dim in [64, 128, 256]:
-            train_config = dict(dim=dim, epoch=epochs, ws=5, ngrams=2)
-            finetune_config = dict(dim=dim, epoch=10, tau=0.01)
-            with meticulous.Experiment({"train": train_config, "fine_tune": finetune_config}) as exp:
-                model = train(**train_config)
-                for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
-                    train_data = load_finetune_data(tuning_set)
-                    finetuned_model = fine_tune(train_data, model, **finetune_config)
-                    test_data = load_finetune_data(tuning_set, test=True)
-                    exp.summary({tuning_set:test(model, finetuned_model, test_data)})
+    for epochs in [1, 3]:
+        for dim in [128]:
+            for ws in [5, 10, 15]:
+                for n_grams in [2, 1, 3]:
+                    train_config = dict(dim=dim, epoch=epochs, ws=ws, ngrams=n_grams)
+                    finetune_config = dict(dim=dim, epoch=10, tau=0.01)
+                    with meticulous.Experiment({"train": train_config, "fine_tune": finetune_config}) as exp:
+                        model = train(**train_config)
+                        for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
+                            train_data = load_finetune_data(tuning_set)
+                            finetuned_model = fine_tune(train_data, model, **finetune_config)
+                            test_data = load_finetune_data(tuning_set, test=True)
+                            exp.summary({tuning_set:test(model, finetuned_model, test_data)})
 
 if __name__ == "__main__":
     main()
