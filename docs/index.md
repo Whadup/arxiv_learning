@@ -39,7 +39,7 @@ For sake of completeness, we have included the list of papers we used for pretra
 ## References
 
 - Lukas Pfahler and Katharina Morik. "Semantic Search in Millions of Equations", *Proceedings of the ACM SIGKDD International Conference on Knowledge Discovery and Data Mining.* 2020. [Paper](https://dl.acm.org/doi/pdf/10.1145/3394486.3403056)
-- Stefan Todorinski, "Erkennung von Ähnlichkeiten zwischen mathematischen Ausdrücken mittels Bidirectional Encoder Representations from Transformers", *Master Thesis*, Dortmund, 2020.
+- Stefan Todorinski, "Erkennung von Ähnlichkeiten zwischen mathematischen Ausdrücken mittels Bidirectional Encoder Representations from Transformers", *Master Thesis*, Dortmund, 2021.
 - Jonathan Schill, "Scaling up the Equation-Encoder - Handling High Data Volume through the Efficient Use of Trainable Parameters", *Bachelor Thesis*, Dortmund, 2020. [Paper](https://www-ai.cs.tu-dortmund.de/auto?self=%24g2mkm58yyo)
 - Lukas Pfahler, Jonathan Schill, and Katharina Morik. "The Search for Equations–Learning to Identify Similarities between Mathematical Expressions." *Joint European Conference on Machine Learning and Knowledge Discovery in Databases*. Springer, Cham, 2019. [Paper](https://link.springer.com/chapter/10.1007/978-3-030-46133-1_42)
 
