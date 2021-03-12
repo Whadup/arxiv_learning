@@ -18,7 +18,7 @@ Lorem Ipsum
 
 ### Keyword-Annotated Formulas
 
-in this shared LaTeX document, we collect keyword-annotated formulas: https://www.overleaf.com/8721648589nrjxgwmtzfvm. We can query these formulas in a large collection of papers and check if the keywords appear in the context of the search results.
+in this shared LaTeX document, we collect keyword-annotated formulas: [Overleaf](https://www.overleaf.com/8721648589nrjxgwmtzfvm). We can query these formulas in a large collection of papers and check if the keywords appear in the context of the search results.
 
 ### Finetuning Data
 We have automatically identified equalities and inequalities on arXiv. Now the machine learning task is to learn to match left-hand-sides and right-hand-sides of these (in-)equalities. We provide three different fine-tuning datasets, each split into train and test files. 
