@@ -16,7 +16,7 @@ Lorem Ipsum
 
 ## Datasets
 
-## Keyword-Annotated Formulas
+### Keyword-Annotated Formulas
 
 in this shared LaTeX document, we collect keyword-annotated formulas: https://www.overleaf.com/8721648589nrjxgwmtzfvm. We can query these formulas in a large collection of papers and check if the keywords appear in the context of the search results.
 
