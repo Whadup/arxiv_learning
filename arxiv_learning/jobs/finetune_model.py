@@ -127,7 +127,7 @@ def main():
     }
     with meticulous.Experiment(finetune_config) as exp:
         for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
-            model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
+            model = GraphCNN(width=256, layer=GatedGraphConv, args=(4,))
             model.load_state_dict_from_path(finetune_config.pop("checkpoint"))
             model = model.cuda().train()
             
