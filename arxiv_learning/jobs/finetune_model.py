@@ -40,26 +40,29 @@ def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
     loss_function = torch.nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
-        for data in tqdm.tqdm(train_loader):
-            x = self.model(data)
-            if hasattr(data, "batch"):
-                emb = scatter_mean(x, data.batch, dim=0)
-            else:
-                emb = x.mean(dim=0, keepdim=True)
-            norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
-            emb = emb.div(norm.expand_as(emb))
+        with tqdm.tqdm(total=len(train_loader)) as pbar:
+            for data in train_loader:
+                pbar.update(1)
+                x = self.model(data)
+                if hasattr(data, "batch"):
+                    emb = scatter_mean(x, data.batch, dim=0)
+                else:
+                    emb = x.mean(dim=0, keepdim=True)
+                norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
+                emb = emb.div(norm.expand_as(emb))
 
-            batch_size = data.num_graphs // 2
+                batch_size = data.num_graphs // 2
 
-            emb = emb.view(batch_size, 2, -1)
-            out1 = emb[:, 0, :]
-            out2 = emb[:, 1, :]
-            sims = torch.matmul(out1, out2.transpose(0, 1)) / tau
-            gt = torch.arange(0, batch_size, dtype=torch.long, device=sims.get_device())
-            loss = loss_function(sims, gt)
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+                emb = emb.view(batch_size, 2, -1)
+                out1 = emb[:, 0, :]
+                out2 = emb[:, 1, :]
+                sims = torch.matmul(out1, out2.transpose(0, 1)) / tau
+                gt = torch.arange(0, batch_size, dtype=torch.long, device=sims.get_device())
+                loss = loss_function(sims, gt)
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                pbar.set_description("{}".format(loss.mean().item()))
 
 
 def test(model, alphabet, test_file):
