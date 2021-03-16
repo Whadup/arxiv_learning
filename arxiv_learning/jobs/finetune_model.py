@@ -42,8 +42,9 @@ def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
     for epoch in range(epochs):
         with tqdm.tqdm(total=len(train_loader)) as pbar:
             for data in train_loader:
+                data = data.to("cuda")
                 pbar.update(1)
-                x = self.model(data)
+                x = model(data)
                 if hasattr(data, "batch"):
                     emb = scatter_mean(x, data.batch, dim=0)
                 else:
@@ -71,13 +72,13 @@ def test(model, alphabet, test_file):
 
 
 def main():
-    checkpoint = "pretrained_graphcnn.pt"
-    model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
+    checkpoint = "pretrained_graph_cnn.pt"
+    model = GraphCNN(width=256, layer=GatedGraphConv, args=(4,))
     model.load_state_dict_from_path(checkpoint)
-    model = model.cuda().eval()
-    
-    alphabet = load_mathml.load_alphabet("vocab.pickle")
-    finetune(model, alphabet, "finetune_inequalities_train.jsonl")
+    model = model.cuda().train()
+
+    alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle") 
+    finetune(model, alphabet, "data/finetune_inequalities_train.jsonl")
 
 
 if __name__ == "__main__":
