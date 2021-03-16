@@ -32,7 +32,7 @@ class FinetuneDataset(torch.utils.data.IterableDataset):
             yield self.lhs[i]
             yield self.rhs[i]
     
-def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
+def finetune(model, alphabet, train_file, epochs=5, tau=0.05):
     train_data = FinetuneDataset(train_file, alphabet)
     train_loader = DataLoader(train_data, batch_size=2 * 512, shuffle=False)
 
@@ -70,7 +70,7 @@ def test(model, alphabet, test_file):
     from annoy import AnnoyIndex
     test_data = FinetuneDataset(test_file, alphabet)
     test_loader = DataLoader(test_data, batch_size=2 * 512)
-    index = AnnoyIndex(256, "angular")
+    index = AnnoyIndex(model.width, "angular")
     model = model.eval()
     
     total = 0
@@ -86,6 +86,9 @@ def test(model, alphabet, test_file):
                     emb = x.mean(dim=0, keepdim=True)
                 norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
                 emb = emb.div(norm.expand_as(emb))
+                batch_size = data.num_graphs // 2
+
+                emb = emb.view(batch_size, 2, -1)
                 for i, e in enumerate(emb.cpu().numpy()):
                     index.add_item(total * 2, e[0, :])
                     index.add_item(total * 2 + 1, e[1, :])
