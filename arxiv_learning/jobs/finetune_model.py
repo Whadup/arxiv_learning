@@ -70,7 +70,7 @@ def test(model, alphabet, test_file):
     from annoy import AnnoyIndex
     test_data = FinetuneDataset(test_file, alphabet)
     test_loader = DataLoader(test_data, batch_size=2 * 512)
-    index = AnnoyIndex(head.output_dim, "angular")
+    index = AnnoyIndex(model.width, "angular")
     model = model.eval()
     
     total = 0
@@ -78,7 +78,6 @@ def test(model, alphabet, test_file):
         pbar.set_description("testing")
         with torch.no_grad():
             for data in test_loader:
-                data = data
                 data = data.to("cuda")
                 x = model(data)
                 if hasattr(data, "batch"):
@@ -87,6 +86,9 @@ def test(model, alphabet, test_file):
                     emb = x.mean(dim=0, keepdim=True)
                 norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
                 emb = emb.div(norm.expand_as(emb))
+                batch_size = data.num_graphs // 2
+
+                emb = emb.view(batch_size, 2, -1)
                 for i, e in enumerate(emb.cpu().numpy()):
                     index.add_item(total * 2, e[0, :])
                     index.add_item(total * 2 + 1, e[1, :])
@@ -120,8 +122,8 @@ def main():
     model = model.cuda().train()
     
     alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
-    finetune(model, alphabet, "finetune_inequalities_train.jsonl")
-    test(model, alphabet, "finetune_inequalities_test.jsonl")
+    finetune(model, alphabet, "data/finetune_inequalities_train.jsonl")
+    test(model, alphabet, "data/finetune_inequalities_test.jsonl")
 
 if __name__ == "__main__":
     main()
