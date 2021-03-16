@@ -23,7 +23,7 @@ class FinetuneDataset(torch.utils.data.IterableDataset):
                 except:
                     continue
                 self.lhs.append(lhs)
-                self.rhs.append(lhs)
+                self.rhs.append(rhs)
     def __len__(self):
         return 2 * len(self.lhs)
     def __iter__(self):
@@ -34,7 +34,7 @@ class FinetuneDataset(torch.utils.data.IterableDataset):
     
 def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
     train_data = FinetuneDataset(train_file, alphabet)
-    train_loader = DataLoader(train_data, batch_size=2 * 512)
+    train_loader = DataLoader(train_data, batch_size=2 * 512, shuffle=False)
 
     optimizer = torch.optim.Adam(model.parameters(), 1e-3)
     loss_function = torch.nn.CrossEntropyLoss()
@@ -63,13 +63,55 @@ def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-                pbar.set_description("{}".format(loss.mean().item()))
+                pbar.set_description("{}".format(loss.item()))
 
 
 def test(model, alphabet, test_file):
+    from annoy import AnnoyIndex
     test_data = FinetuneDataset(test_file, alphabet)
     test_loader = DataLoader(test_data, batch_size=2 * 512)
-
+    index = AnnoyIndex(head.output_dim, "angular")
+    model = model.eval()
+    
+    total = 0
+    with tqdm.tqdm(total=len(test_data), ncols=120, dynamic_ncols=False, smoothing=0.1, position=0) as pbar:
+        pbar.set_description("testing")
+        with torch.no_grad():
+            for data in test_loader:
+                data = data
+                data = data.to("cuda")
+                x = model(data)
+                if hasattr(data, "batch"):
+                    emb = scatter_mean(x, data.batch, dim=0)
+                else:
+                    emb = x.mean(dim=0, keepdim=True)
+                norm = torch.norm(emb, dim=1, keepdim=True) + 1e-8
+                emb = emb.div(norm.expand_as(emb))
+                for i, e in enumerate(emb.cpu().numpy()):
+                    index.add_item(total * 2, e[0, :])
+                    index.add_item(total * 2 + 1, e[1, :])
+                    total += 1
+                pbar.update(emb.shape[0] * 2)
+    index.build(16)
+    index.save("tmp.ann")
+    fail = 0
+    ranks = []
+    for i in tqdm.tqdm(range(total)):
+        results = index.get_nns_by_item(2 * i, 1000)[1:]
+        results = np.array(results) // 2
+        rank = np.argwhere(results == i)
+        if not len(rank):
+            fail += 1
+        else:
+            ranks.append(rank[0])
+    ranks = np.array(ranks)
+    recall_at_1 = (ranks < 1).sum() / (1.0 * len(ranks) + fail)
+    recall_at_10 = (ranks < 10).sum() / (1.0* len(ranks) + fail)
+    recall_at_100 = (ranks < 100).sum() / (1.0 * len(ranks) + fail)
+    #TODO: Log to Sacred
+    print("RANKS: mean {}, fails {}, recall@1 {}, recall@10 {} recall@100 {}".format(
+        ranks.mean(), fail, recall_at_1, recall_at_10, recall_at_100))
+    return dict(mean_rank=ranks.mean(), fails=fail, fail_ratio=fail / (1.0 * len(ranks) + fail), recall_at_1=recall_at_1, recall_at_10=recall_at_10, recall_at_100=recall_at_100)
 
 def main():
     checkpoint = "pretrained_graph_cnn.pt"
@@ -79,7 +121,7 @@ def main():
     
     alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
     finetune(model, alphabet, "finetune_inequalities_train.jsonl")
-
+    test(model, alphabet, "finetune_inequalities_test.jsonl")
 
 if __name__ == "__main__":
     main()
