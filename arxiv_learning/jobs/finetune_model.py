@@ -2,6 +2,7 @@ import json
 import torch
 import tqdm
 import numpy as np
+import meticulous
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GatedGraphConv, GraphConv, FeaStConv, GATConv
 from torch_scatter import scatter_min, scatter_mean
@@ -32,11 +33,11 @@ class FinetuneDataset(torch.utils.data.IterableDataset):
             yield self.lhs[i]
             yield self.rhs[i]
     
-def finetune(model, alphabet, train_file, epochs=5, tau=0.05):
+def finetune(model, alphabet, train_file, epochs=10, tau=0.05, lr=1e-3):
     train_data = FinetuneDataset(train_file, alphabet)
     train_loader = DataLoader(train_data, batch_size=2 * 512, shuffle=False)
 
-    optimizer = torch.optim.Adam(model.parameters(), 1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr)
     loss_function = torch.nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
@@ -116,14 +117,20 @@ def test(model, alphabet, test_file):
     return dict(mean_rank=ranks.mean(), fails=fail, fail_ratio=fail / (1.0 * len(ranks) + fail), recall_at_1=recall_at_1, recall_at_10=recall_at_10, recall_at_100=recall_at_100)
 
 def main():
-    checkpoint = "pretrained_graph_cnn.pt"
-    model = GraphCNN(width=256, layer=GatedGraphConv, args=(4,))
-    model.load_state_dict_from_path(checkpoint)
-    model = model.cuda().train()
-    
-    alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
-    finetune(model, alphabet, "data/finetune_inequalities_train.jsonl")
-    test(model, alphabet, "data/finetune_inequalities_test.jsonl")
+    finetune_config={
+        "checkpoint": "pretrained_graph_cnn.pt",
+        "epochs": 10,
+        "tau": 0.05,
+        "lr" : 1e-3
+    }
+    with meticulous.Experiment(finetune_config) as exp:
+        model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
+        model.load_state_dict_from_path(finetune_config.pop("checkpoint"))
+        model = model.cuda().train()
+        
+        alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
+        finetune(model, alphabet, "data/finetune_inequalities_train.jsonl", **finetune_config)
+        exp.summary(test(model, alphabet, "data/finetune_inequalities_test.jsonl"))
 
 if __name__ == "__main__":
     main()
