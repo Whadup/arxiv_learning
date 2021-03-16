@@ -102,10 +102,10 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
 
     width = 256
 
-    net = GraphCNN(width=width, layer=GraphConv, args=(width, ))
-    # net = GraphCNN(width=width, layer=GatedGraphConv, args=(5,))
+    #net = GraphCNN(width=width, layer=GraphConv, args=(width, ))
+    net = GraphCNN(width=width, layer=GatedGraphConv, args=(4,))
     # net = GraphCNN(width=width, layer=FeaStConv, args=(width, 6),)
-    # net = GraphCNN(width=width, layer=GATConv, args=(width, 6),)
+    #net = GraphCNN(width=width, layer=GATConv, args=(width, 6),)
 
     # torch.set_default_dtype(torch.float16)
     net = net.to(device)
@@ -115,19 +115,18 @@ def train_model(batch_size, learning_rate, epochs, masked_language_training, dat
             "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             # "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
             "head": InfoNCEHead,
-            "head_kwargs": {"width": width, "output_dim": 256}
+            "head_kwargs": {"width": width, "output_dim": 256, "tau":0.01}
 
         },
         "mask": {
-            "data_set": arxiv_learning.data.heuristics.masking.MaskingHeuristic,
-            # "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
+           "data_set": arxiv_learning.data.heuristics.masking.MaskingHeuristic,
             "head": MaskedHead,
             "head_kwargs": {"width": width}
         }
     }
-    batch_size = 512
-    trainloader = RayManager(total=1024, blowout=8, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
-    testloader = RayManager(test=True, total=256, blowout=4, custom_heuristics=heuristics, batch_size=512, data_augmentation=data_augmentation)
+    batch_size = 1024
+    trainloader = RayManager(total=1024, blowout=64, custom_heuristics=heuristics, batch_size=batch_size, data_augmentation=data_augmentation)
+    testloader = RayManager(test=True, total=256, blowout=16, custom_heuristics=heuristics, batch_size=512, data_augmentation=data_augmentation)
 
     basefile = arxiv_learning.data.heuristics.heuristic.Heuristic().basefile
     vocab_file = os.path.abspath(os.path.join(os.path.split(basefile)[0], "vocab.pickle"))
