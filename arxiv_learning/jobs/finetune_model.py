@@ -124,7 +124,7 @@ def main():
         "lr" : 1e-3
     }
     with meticulous.Experiment(finetune_config) as exp:
-        model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
+        model = GraphCNN(width=256, layer=GatedGraphConv, args=(4,))
         model.load_state_dict_from_path(finetune_config.pop("checkpoint"))
         model = model.cuda().train()
         
