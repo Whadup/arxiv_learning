@@ -36,14 +36,15 @@ def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
     train_data = FinetuneDataset(train_file, alphabet)
     train_loader = DataLoader(train_data, batch_size=2 * 512)
 
-    optimizer = torch.optim.Adam(model.parameters(), tau)
+    optimizer = torch.optim.Adam(model.parameters(), 1e-3)
     loss_function = torch.nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
         with tqdm.tqdm(total=len(train_loader)) as pbar:
             for data in train_loader:
+                data = data.cuda()
                 pbar.update(1)
-                x = self.model(data)
+                x = model(data)
                 if hasattr(data, "batch"):
                     emb = scatter_mean(x, data.batch, dim=0)
                 else:
@@ -71,12 +72,12 @@ def test(model, alphabet, test_file):
 
 
 def main():
-    checkpoint = "pretrained_graphcnn.pt"
+    checkpoint = "pretrained_graph_cnn.pt"
     model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
     model.load_state_dict_from_path(checkpoint)
-    model = model.cuda().eval()
+    model = model.cuda().train()
     
-    alphabet = load_mathml.load_alphabet("vocab.pickle")
+    alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
     finetune(model, alphabet, "finetune_inequalities_train.jsonl")
 
 
