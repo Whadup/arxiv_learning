@@ -1,3 +1,5 @@
+"""Finetune GraphCNNs for Equality Identification"""
+import os
 import json
 import torch
 import tqdm
@@ -124,13 +126,16 @@ def main():
         "lr" : 1e-3
     }
     with meticulous.Experiment(finetune_config) as exp:
-        model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
-        model.load_state_dict_from_path(finetune_config.pop("checkpoint"))
-        model = model.cuda().train()
-        
-        alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
-        finetune(model, alphabet, "data/finetune_inequalities_train.jsonl", **finetune_config)
-        exp.summary(test(model, alphabet, "data/finetune_inequalities_test.jsonl"))
+        for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
+            model = GraphCNN(width=256, layer=GatedGraphConv, args=(2,))
+            model.load_state_dict_from_path(finetune_config.pop("checkpoint"))
+            model = model.cuda().train()
+            
+            alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
+            finetune(model, alphabet, os.path.join("data", tuning_set), **finetune_config)
+            exp.summary({
+                tuning_set:test(model, alphabet, os.path.join("data", tuning_set.replace("train", "test")))
+            })
 
 if __name__ == "__main__":
     main()
