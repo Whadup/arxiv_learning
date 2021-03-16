@@ -23,7 +23,7 @@ class FinetuneDataset(torch.utils.data.IterableDataset):
                 except:
                     continue
                 self.lhs.append(lhs)
-                self.rhs.append(lhs)
+                self.rhs.append(rhs)
     def __len__(self):
         return 2 * len(self.lhs)
     def __iter__(self):
@@ -34,9 +34,9 @@ class FinetuneDataset(torch.utils.data.IterableDataset):
     
 def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
     train_data = FinetuneDataset(train_file, alphabet)
-    train_loader = DataLoader(train_data, batch_size=2 * 512)
+    train_loader = DataLoader(train_data, batch_size=2 * 512, shuffle=False)
 
-    optimizer = torch.optim.Adam(model.parameters(), tau)
+    optimizer = torch.optim.Adam(model.parameters(), 1e-3)
     loss_function = torch.nn.CrossEntropyLoss()
 
     for epoch in range(epochs):
@@ -63,7 +63,7 @@ def finetune(model, alphabet, train_file, epochs=10, tau=0.05):
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-                pbar.set_description("{}".format(loss.mean().item()))
+                pbar.set_description("{}".format(loss.item()))
 
 
 def test(model, alphabet, test_file):
