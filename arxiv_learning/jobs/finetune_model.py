@@ -119,24 +119,27 @@ def test(model, alphabet, test_file):
     return dict(mean_rank=ranks.mean(), fails=fail, fail_ratio=fail / (1.0 * len(ranks) + fail), recall_at_1=recall_at_1, recall_at_10=recall_at_10, recall_at_100=recall_at_100)
 
 def main():
-    finetune_config={
-        "checkpoint": "pretrained_graph_cnn.pt",
-        "epochs": 10,
-        "tau": 0.05,
-        "lr" : 1e-3
-    }
-    with meticulous.Experiment(finetune_config) as exp:
-        checkpoint = finetune_config.pop("checkpoint")
-        for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
-            model = GraphCNN(width=256, layer=GatedGraphConv, args=(4,))
-            model.load_state_dict_from_path(checkpoint)
-            model = model.cuda().train()
-            
-            alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
-            finetune(model, alphabet, os.path.join("data", tuning_set), **finetune_config)
-            exp.summary({
-                tuning_set:test(model, alphabet, os.path.join("data", tuning_set.replace("train", "test")))
-            })
+    for epochs in [1, 5, 10, 50]:
+        for tau in [0.05, 0.01]:
+            for lr in [1e-3, 5e-4, 1e-4]:
+                finetune_config={
+                    "checkpoint": "pretrained_graph_cnn.pt",
+                    "epochs": epochs,
+                    "tau": tau,
+                    "lr" : lr
+                }
+                with meticulous.Experiment(finetune_config) as exp:
+                    checkpoint = finetune_config.pop("checkpoint")
+                    for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
+                        model = GraphCNN(width=256, layer=GatedGraphConv, args=(4,))
+                        model.load_state_dict_from_path(checkpoint)
+                        model = model.cuda().train()
+                        
+                        alphabet = load_mathml.load_alphabet("/data/pfahler/arxiv_v2/vocab.pickle")
+                        finetune(model, alphabet, os.path.join("data", tuning_set), **finetune_config)
+                        exp.summary({
+                            tuning_set:test(model, alphabet, os.path.join("data", tuning_set.replace("train", "test")))
+                        })
 
 if __name__ == "__main__":
     main()
