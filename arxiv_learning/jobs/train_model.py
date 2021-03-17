@@ -107,20 +107,25 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
                         if i % loss_log_interval == loss_log_interval - 1:
                             for dataset, head in heads.items():
                                 for metric, value in head.metrics().items():
-                                    if loader is testloader:
-                                        sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
-                                    else:
-                                        sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
+                                    pass
+                                    # if loader is testloader:
+                                    #     sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
+                                    # else:
+                                    #     sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
             print()
             for dataset, head in heads.items():
                 for metric, value in head.metrics().items():
-                    if loader is testloader:
-                        sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
-                    else:
-                        sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
+                    pass
+                    # if loader is testloader:
+                    #     sacred_experiment.log_scalar("test.{}.{}".format(dataset, metric), value)
+                    # else:
+                    #     sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
             # return
         net.save_checkpoint(epoch)
-        sacred_experiment.add_artifact(net.checkpoint_string.format(epoch))
+        if exp is not None:
+            with exp.open(net.checkpoint_string.format(epoch), "wb") as f:
+                f.write(open(net.checkpoint_string.format(epoch), "rb").read())
+        # sacred_experiment.add_artifact(net.checkpoint_string.format(epoch))
         # r1, r10, r100 = test_model(net, testloader, heads["equalities"], 256, device)
         # sacred_experiment.log_scalar("test.recall@1", r1)
         # sacred_experiment.log_scalar("test.recall@10", r10)
@@ -158,3 +163,7 @@ def main():
     with meticulous.Experiment.from_parser(parser) as exp:
         net = construct_model(args.width, GraphConv, args.width)
         train_model(net, exp=exp, **vars(args))
+
+
+if __name__ == "__main__":
+    main()
