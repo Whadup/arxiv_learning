@@ -84,8 +84,12 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
                 pbar.set_description("epoch {}/{}".format(epoch+1, epochs))
                 if loader == testloader:
                     net = net.eval()
+                    if test_steps <= 0:
+                        continue
                 else:
                     net = net.train()
+                    if train_steps <= 0:
+                        continue
 
                 for head in heads.values():
                     head.reset_metrics()
