@@ -47,14 +47,14 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
             "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             # "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
             "head": InfoNCEHead,
-            "head_kwargs": {"width": width, "output_dim": 256}
+            "head_kwargs": {"width": width, "output_dim": 256, "lr":learning_rate}
 
         },
         "mask": {
             "data_set": arxiv_learning.data.heuristics.masking.MaskingHeuristic,
             # "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
             "head": MaskedHead,
-            "head_kwargs": {"width": width}
+            "head_kwargs": {"width": width, "lr":learning_rate}
         }
     }
 
