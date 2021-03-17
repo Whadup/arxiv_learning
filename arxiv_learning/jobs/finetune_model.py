@@ -141,5 +141,5 @@ def main():
                             tuning_set:test(model, alphabet, os.path.join("data", tuning_set.replace("train", "test")))
                         })
 
-        if __name__ == "__main__":
-            main()
+if __name__ == "__main__":
+    main()
