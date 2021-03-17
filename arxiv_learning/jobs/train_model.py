@@ -34,7 +34,7 @@ def replace_tabs(s):
 def construct_model(width, layer, *layer_args):
     return GraphCNN(width=width, layer=layer, args=layer_args)
 
-def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, train_steps=1024, test_steps=256, data_augmentation=True, exp=None, **kwargs):
+def train_model(net, width=256, batch_size=512, lr=1e-3, epochs=50, train_steps=1024, test_steps=256, data_augmentation=True, exp=None, **kwargs):
     """
     train a model
     """
@@ -47,14 +47,14 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
             "data_set": arxiv_learning.data.heuristics.context.SamePaper,
             # "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
             "head": InfoNCEHead,
-            "head_kwargs": {"width": width, "output_dim": 256, "lr":learning_rate}
+            "head_kwargs": {"width": width, "output_dim": 256, "lr": lr}
 
         },
         "mask": {
             "data_set": arxiv_learning.data.heuristics.masking.MaskingHeuristic,
             # "data_set": arxiv_learning.data.heuristics.equations.EqualityHeuristic,
             "head": MaskedHead,
-            "head_kwargs": {"width": width, "lr":learning_rate}
+            "head_kwargs": {"width": width, "lr": lr}
         }
     }
 
