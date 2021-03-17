@@ -6,8 +6,8 @@ from arxiv_learning.nn.scheduler import WarmupLinearSchedule
 from .head import Head
 
 class MaskedHead(Head):
-    def __init__(self, model, width=512):
-        super().__init__(model)
+    def __init__(self, model, width=512, **kwargs):
+        super().__init__(model, **kwargs)
         self.width = width
         self.output = torch.nn.Linear(self.width, VOCAB_SYMBOLS)
         self.loss = torch.nn.CrossEntropyLoss(reduction="mean")
