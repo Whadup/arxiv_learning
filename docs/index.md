@@ -35,6 +35,69 @@ For sake of completeness, we have included the list of papers we used for pretra
 - __Fine-Tuning Papers:__ [Metadata](https://github.com/Whadup/arxiv_learning/blob/master/data/test_papers_meta.json.gz)
 - __Pre-Training Papers:__ [Metadata](https://github.com/Whadup/arxiv_learning/blob/master/data/train_papers_meta.json.gz)
 
+## Finetuning-Results
+
+We report finetuning results for different kinds of models, measuring recall@K.
+
+<table>
+<thead>
+  <tr>
+    <th rowspan="2">Model</th>
+    <th colspan="3">Equalities</th>
+    <th colspan="3">Inequalities</th>
+    <th colspan="3">Relations</th>
+  </tr>
+  <tr>
+    <td>R@1</td>
+    <td>R@10</td>
+    <td>R@100</td>
+    <td>R@1</td>
+    <td>R@10</td>
+    <td>R@100</td>
+    <td>R@1</td>
+    <td>R@10</td>
+    <td>R@100</td>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td>FastText</td>
+    <td>0.46</td>
+    <td>0.64</td>
+    <td>0.73</td>
+    <td>0.48</td>
+    <td>0.70</td>
+    <td>0.80</td>
+    <td>0.47</td>
+    <td>0.63</td>
+    <td>0.73</td>
+  </tr>
+  <tr>
+    <td>Tangent-CFT</td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>GraphCNN</td>
+    <td>0.48</td>
+    <td>0.80</td>
+    <td>0.84</td>
+    <td>0.49</td>
+    <td>0.84</td>
+    <td>0.89</td>
+    <td>0.49</td>
+    <td>0.81</td>
+    <td>0.85</td>
+  </tr>
+</tbody>
+</table>
 
 ## References
 
