@@ -24,6 +24,24 @@ def flush_cache(cache):
         for eq in cache:
             f.write(eq + "\n")
 
+def mathml_to_root_path(mathml):
+    preorder_str = ""
+    tree_dict = arxiv_learning.data.load_mathml.load_dict(None, mathml)
+    repr_string, without_attr = arxiv_learning.data.load_mathml.build_representation_string(tree_dict)
+    preorder_str += " " + without_attr
+    if "children" in tree_dict:
+        for child in tree_dict["children"]:
+            preorder_str = _tree_to_root_path(child, preorder_str, without_attr)
+    return preorder_str
+
+def _tree_to_root_path(tree_dict, preorder_str, root_path):
+    repr_string, without_attr = arxiv_learning.data.load_mathml.build_representation_string(tree_dict)
+    root_path = root_path +"/"+ without_attr
+    preorder_str += " " + root_path
+    if "children" in tree_dict:
+        for child in tree_dict["children"]:
+            preorder_str = _tree_to_root_path(child, preorder_str, root_path)
+    return preorder_str
 
 def mathml_to_string(mathml):
     preorder_str = ""
@@ -62,7 +80,10 @@ def main():
         try:
             paper_dict = json.load(json_files.open(json_file, "r"))
             eqs_xml = all_eqs(paper_dict)
-            eqs_string = [mathml_to_string(eq_xml) for eq_xml in eqs_xml]
+            if args.root_path:
+                eqs_string = [mathml_to_root_path(eq_xml) for eq_xml in eqs_xml]
+            else:
+                eqs_string = [mathml_to_string(eq_xml) for eq_xml in eqs_xml]
             eqs_string = [item for item in eqs_string if item]
             cache += eqs_string
         except json.decoder.JSONDecodeError:
@@ -81,5 +102,6 @@ if __name__ == "__main__":
     parser.add_argument("--json_path", help="Path to the directory with the json files that store the eqs.")
     parser.add_argument("--out_path", help="Path to file in that you want to store the output.")
     parser.add_argument("--test", action="store_true")
+    parser.add_argument("--root_path", action="store_true")
     args = parser.parse_args()
     main()
