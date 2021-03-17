@@ -10,7 +10,7 @@ class MaskedHead(Head):
         super().__init__(model)
         self.width = width
         self.output = torch.nn.Linear(self.width, VOCAB_SYMBOLS)
-        self.loss = torch.nn.CrossEntropyLoss(reduction="none")
+        self.loss = torch.nn.CrossEntropyLoss(reduction="mean")
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
         self.scheduler = WarmupLinearSchedule(self.optimizer, 500, 20 * 10000)
 
@@ -30,6 +30,6 @@ class MaskedHead(Head):
         y = data.y
         # print(preds.shape, y.shape)
         l = self.loss(preds, y.view(-1))
-        self.target = l.mean()
-        self.running_loss += l.sum().item()
+        self.target = l
+        self.running_loss += l.item() * (y >= 0).sum().item()
         self.token_cnt += (y >= 0).sum().item()
