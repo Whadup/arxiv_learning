@@ -45,7 +45,7 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <th rowspan="2">Model</th>
     <th colspan="3">Equalities</th>
     <th colspan="3">Inequalities</th>
-    <th colspan="3">Relations</th>
+    <th colspan="3">Mixed Operators</th>
   </tr>
   <tr>
     <td>R@1</td>
