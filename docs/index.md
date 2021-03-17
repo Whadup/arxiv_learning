@@ -85,7 +85,7 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td></td>
   </tr>
   <tr>
-    <td>GraphCNN</td>
+    <td>Graph-CNN</td>
     <td>0.48</td>
     <td>0.80</td>
     <td>0.84</td>
