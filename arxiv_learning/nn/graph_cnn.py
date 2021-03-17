@@ -124,7 +124,8 @@ class GraphCNN(torch.nn.Module):
     def save(self):
         """store the final model"""
         torch.save(self.state_dict(), self.save_path)
-
+    def save_file(self, file):
+        torch.save(self.state_dict(), file)
     def load(self):
         """load a trained model"""
         self.load_state_dict(torch.load(self.save_path, map_location='cpu'))

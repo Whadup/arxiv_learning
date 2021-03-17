@@ -84,8 +84,12 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
                 pbar.set_description("epoch {}/{}".format(epoch+1, epochs))
                 if loader == testloader:
                     net = net.eval()
+                    if test_steps <= 0:
+                        continue
                 else:
                     net = net.train()
+                    if train_steps <= 0:
+                        continue
 
                 for head in heads.values():
                     head.reset_metrics()
@@ -121,10 +125,10 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
                     # else:
                     #     sacred_experiment.log_scalar("train.{}.{}".format(dataset, metric), value)
             # return
-        net.save_checkpoint(epoch)
+        # net.save_checkpoint(epoch)
         if exp is not None:
             with exp.open(net.checkpoint_string.format(epoch), "wb") as f:
-                f.write(open(net.checkpoint_string.format(epoch), "rb").read())
+                net.save_file(f)
         # sacred_experiment.add_artifact(net.checkpoint_string.format(epoch))
         # r1, r10, r100 = test_model(net, testloader, heads["equalities"], 256, device)
         # sacred_experiment.log_scalar("test.recall@1", r1)
@@ -133,10 +137,15 @@ def train_model(net, width=256, batch_size=512, learning_rate=1e-3, epochs=50, t
 
         # scheduler.step()
     net.to("cpu")
-    net.save()
+    if exp is not None:
+        with exp.open(net.save_path, "wb") as f:
+            net.save_file(f)
+    else:
+        net.save()
     for bar in bars.values():
         bar.close()
         print()
+    return net
 
 
 
