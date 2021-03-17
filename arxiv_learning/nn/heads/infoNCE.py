@@ -8,7 +8,7 @@ from .head import Head
 class InfoNCEHead(Head):
     def __init__(self, model, width=512, output_dim=64, tau=0.05, **kwargs):
 
-        super().__init__(model, **kwags)
+        super().__init__(model, **kwargs)
         self.width = width
         self.output_dim = output_dim
         self.tau = tau
