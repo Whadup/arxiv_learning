@@ -123,7 +123,7 @@ def main():
         for tau in [0.05, 0.01]:
             for lr in [1e-3, 5e-4, 1e-4]:
                 finetune_config={
-                    "checkpoint": "pretrained_graph_cnn.pt",
+                    "checkpoint": "experiments/20/graph_cnn.pt",
                     "epochs": epochs,
                     "tau": tau,
                     "lr" : lr
