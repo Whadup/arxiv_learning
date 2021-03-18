@@ -85,16 +85,16 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td></td>
   </tr>
   <tr>
-    <td>Graph-CNN</td>
-    <td>0.48</td>
-    <td>0.80</td>
-    <td>0.84</td>
-    <td>0.49</td>
-    <td>0.84</td>
-    <td>0.89</td>
-    <td>0.49</td>
-    <td>0.81</td>
-    <td>0.85</td>
+    <td>GraphCNN</td>
+    <td>0.51</td>
+    <td>0.83</td>
+    <td>0.88</td>
+    <td>0.59</td>
+    <td>0.87</td>
+    <td>0.92</td>
+    <td>0.51</td>
+    <td>0.83</td>
+    <td>0.88</td>
   </tr>
   <tr>
     <td>Transformer small</td>
