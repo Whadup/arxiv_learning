@@ -35,7 +35,7 @@ For sake of completeness, we have included the list of papers we used for pretra
 - __Fine-Tuning Papers:__ [Metadata](https://github.com/Whadup/arxiv_learning/blob/master/data/test_papers_meta.json.gz)
 - __Pre-Training Papers:__ [Metadata](https://github.com/Whadup/arxiv_learning/blob/master/data/train_papers_meta.json.gz)
 
-## Finetuning-Results
+## Finetuning Results
 
 We report finetuning results for different kinds of models, measuring recall@K.
 
