@@ -19,7 +19,7 @@ Lorem Ipsum
 
 ### Preprocessed Data
 
-Password protected, but available here: [Sciebo-Link](https://tu-dortmund.sciebo.de/s/Ul9xSFnbeQFV9qC)
+Password protected, but available here: [Sciebo-Link](https://tu-dortmund.sciebo.de/s/Ul9xSFnbeQFV9qC). 
 Just reach out for the password.
 
 ### Keyword-Annotated Formulas
