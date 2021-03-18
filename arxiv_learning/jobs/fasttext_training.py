@@ -10,13 +10,13 @@ import zipfile
 import pickle
 import meticulous
 import tqdm
-from .fasttext_data import mathml_to_string
+from .fasttext_data import mathml_to_string, mathml_to_root_path
 import annoy
 
 
 def train(dim=64, epoch=1, ws=5, ngrams=2):
     model = fasttext.train_unsupervised(
-        "/data/s1/pfahler/arxiv_v2/plaintext_train.txt",
+        "/data/s1/pfahler/arxiv_v2/rootpath_train.txt",
         model="skipgram",
         dim=dim,
         ws=ws,
@@ -34,8 +34,8 @@ def load_finetune_data(basefile, test=False):
         for example in f:
             example = json.loads(example)
             try:
-                a = mathml_to_string(example["part_a"])
-                b = mathml_to_string(example["part_b"])
+                a = mathml_to_root_path(example["part_a"])
+                b = mathml_to_root_path(example["part_b"])
                 X1.append(a)
                 X2.append(b)
             except:
@@ -116,8 +116,8 @@ def test(model, finetuned_model, data):
     return dict(mean_rank=ranks.mean(), fails=fail, fail_ratio=fail / (1.0 * len(ranks) + fail), recall_at_1=recall_at_1, recall_at_10=recall_at_10, recall_at_100=recall_at_100)
 
 def main():
-    for epochs in [1, 3]:
-        for dim in [128]:
+    for epochs in [1, 3, 10]:
+        for dim in [64, 128, 256]:
             for ws in [5, 10, 15]:
                 for n_grams in [2, 1, 3]:
                     train_config = dict(dim=dim, epoch=epochs, ws=ws, ngrams=n_grams)
