@@ -28,7 +28,7 @@ def mathml_to_root_path(mathml):
     preorder_str = ""
     tree_dict = arxiv_learning.data.load_mathml.load_dict(None, mathml)
     repr_string, without_attr = arxiv_learning.data.load_mathml.build_representation_string(tree_dict)
-    preorder_str += " " + without_attr
+    preorder_str += "{:02X}".format(hash(without_attr) << (1<<32))
     if "children" in tree_dict:
         for child in tree_dict["children"]:
             preorder_str = _tree_to_root_path(child, preorder_str, without_attr)
@@ -37,7 +37,7 @@ def mathml_to_root_path(mathml):
 def _tree_to_root_path(tree_dict, preorder_str, root_path):
     repr_string, without_attr = arxiv_learning.data.load_mathml.build_representation_string(tree_dict)
     root_path = root_path +"/"+ without_attr
-    preorder_str += " " + root_path
+    preorder_str += " " + "{:02X}".format(hash(root_path) << (1<<32))
     if "children" in tree_dict:
         for child in tree_dict["children"]:
             preorder_str = _tree_to_root_path(child, preorder_str, root_path)
