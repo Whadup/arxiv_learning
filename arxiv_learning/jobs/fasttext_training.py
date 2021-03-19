@@ -2,6 +2,7 @@
 We train another model, facebooks fasttext, on the pre-order trees.
 Then we test with finetuning tasks of equality prediction.
 """
+import os
 import torch
 import fasttext
 import numpy as np
@@ -125,9 +126,9 @@ def main():
                     with meticulous.Experiment({"train": train_config, "fine_tune": finetune_config}) as exp:
                         model = train(**train_config)
                         for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
-                            train_data = load_finetune_data(tuning_set)
+                            train_data = load_finetune_data(os.path.join("data",tuning_set))
                             finetuned_model = fine_tune(train_data, model, **finetune_config)
-                            test_data = load_finetune_data(tuning_set, test=True)
+                            test_data = load_finetune_data(os.path.join("data",tuning_set), test=True)
                             exp.summary({tuning_set:test(model, finetuned_model, test_data)})
 
 if __name__ == "__main__":
