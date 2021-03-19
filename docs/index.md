@@ -24,7 +24,7 @@ Just reach out for the password.
 
 ### Keyword-Annotated Formulas
 
-in this shared LaTeX document, we collect keyword-annotated formulas: [Overleaf](https://www.overleaf.com/8721648589nrjxgwmtzfvm). We can query these formulas in a large collection of papers and check if the keywords appear in the context of the search results. 
+in this shared LaTeX document, we collect keyword-annotated formulas: [Overleaf](https://www.overleaf.com/8721648589nrjxgwmtzfvm). We can query these formulas in a large collection of papers and check if the keywords appear in the context of the search results. A processed version of this document is available here: [eval.json](https://github.com/Whadup/arxiv_learning/blob/master/eval.json).
 
 We also have a small set of machine-learning related formulas labeled into categories. [Labeled Data](https://github.com/Whadup/arxiv_learning/blob/master/eval.json). __Warning:__ These formulas are copied from arxiv papers, often multiple formulas belong to the same paper and we do not have meta data to reconstruct the source. When pre-training on a large collection, it is thus likely that these test formulas have been seen during training, possibly even as positive pairs in contrasitve learning tasks.
 
