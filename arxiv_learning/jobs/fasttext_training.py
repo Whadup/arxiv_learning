@@ -17,7 +17,7 @@ import annoy
 
 def train(dim=64, epoch=1, ws=5, ngrams=2):
     model = fasttext.train_unsupervised(
-        "/data/s1/pfahler/arxiv_v2/rootpath_train.txt",
+        "/data/s1/pfahler/arxiv_v2/plaintext_train.txt",
         model="skipgram",
         dim=dim,
         ws=ws,
@@ -35,8 +35,8 @@ def load_finetune_data(basefile, test=False):
         for example in f:
             example = json.loads(example)
             try:
-                a = mathml_to_root_path(example["part_a"])
-                b = mathml_to_root_path(example["part_b"])
+                a = mathml_to_string(example["part_a"])
+                b = mathml_to_string(example["part_b"])
                 X1.append(a)
                 X2.append(b)
             except:
@@ -44,7 +44,7 @@ def load_finetune_data(basefile, test=False):
     return X1, X2
 
 
-def fine_tune(data, model, epoch=1, dim=64, tau=0.05):
+def fine_tune(data, model, epoch=1, dim=64, tau=0.05, lr=1e-3):
     X1 = []
     X2 = []
     for a,b in zip(*data):
@@ -56,7 +56,7 @@ def fine_tune(data, model, epoch=1, dim=64, tau=0.05):
     head = torch.nn.Sequential(
         torch.nn.Linear(model.get_dimension(), dim)
     )
-    optimizer = torch.optim.Adam(head.parameters(), tau)
+    optimizer = torch.optim.Adam(head.parameters(), lr)
     dataloader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(X1, X2), batch_size=1024, drop_last=True, shuffle=True)
     labels = torch.arange(1024)
     lossfunction = torch.nn.CrossEntropyLoss()
@@ -123,7 +123,7 @@ def main():
                 for n_grams in [2, 1, 3]:
                     train_config = dict(dim=dim, epoch=epochs, ws=ws, ngrams=n_grams)
                     finetune_config = dict(dim=dim, epoch=10, tau=0.01)
-                    with meticulous.Experiment({"train": train_config, "fine_tune": finetune_config}) as exp:
+                    with meticulous.Experiment({"train": train_config, "fine_tune": finetune_config}, experiments_directory="fasttext_experiments") as exp:
                         model = train(**train_config)
                         for tuning_set in ["finetune_equalities_train.jsonl", "finetune_inequalities_train.jsonl", "finetune_relations_train.jsonl"]:
                             train_data = load_finetune_data(os.path.join("data",tuning_set))
