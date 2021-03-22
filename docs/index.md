@@ -95,7 +95,7 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td>0.51</td>
     <td>0.83</td>
     <td>0.88</td>
-    <td>0.59</td>
+    <td>0.50</td>
     <td>0.87</td>
     <td>0.92</td>
     <td>0.51</td>
