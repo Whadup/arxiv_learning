@@ -9,3 +9,4 @@ checkpoints/
 eval.csv
 tmp.ann
 experiments
+bow_experiments
