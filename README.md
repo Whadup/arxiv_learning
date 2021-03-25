@@ -5,15 +5,6 @@ We propose to use unsupervised representation learning techniques to search for 
 ## Preprocessing
 
 We have published our data processing pipeline as a standalone python library at [https://github.com/Whadup/arxiv_library](https://github.com/Whadup/arxiv_library). 
-{% comment %} 
-## Models
-
-Lorem Ipsum
-
-## Results
-
-Lorem Ipsum
-{% endcomment %}
 
 ## Datasets
 
