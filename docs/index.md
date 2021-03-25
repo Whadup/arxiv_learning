@@ -84,7 +84,7 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td>0.83</td>
     <td>0.88</td>
     <td>0.51</td>
-    <td>0.83</td>
+    <td><b>0.83</b></td>
     <td>0.88</td>
     <td>0.50</td>
     <td>0.87</td>
@@ -109,22 +109,22 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td>0.90</td>
     <td>0.54</td>
     <td>0.8</td>
-    <td>0.95</td>
+    <td><b>0.95</b></td>
     <td>0.52</td>
     <td>0.87</td>
     <td>0.98</td>
   </tr>
   <tr>
     <td>Transformer large</td>
-    <td>0.58<br></td>
-    <td>0.82</td>
-    <td>0.94</td>
-    <td>0.59</td>
+    <td><b>0.58</b></td>
+    <td><b>0.82</b></td>
+    <td><b>0.94</b></td>
+    <td><b>0.59</b></td>
     <td>0.81</td>
     <td>0.94</td>
-    <td>0.55</td>
-    <td>0.90</td>
-    <td>0.99</td>
+    <td><b>0.55</td>
+    <td><b>0.90</td>
+    <td><b>0.99</b></td>
   </tr>
 </tbody>
 </table>
