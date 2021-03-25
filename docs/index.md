@@ -45,19 +45,7 @@ For sake of completeness, we have included the list of papers we used for pretra
 
 We report finetuning results for different kinds of models, measuring recall@K.
 
-<table style="undefined;table-layout: fixed; width: 851px">
-<colgroup>
-<col style="width: 174px">
-<col style="width: 62px">
-<col style="width: 72px">
-<col style="width: 84px">
-<col style="width: 71px">
-<col style="width: 71px">
-<col style="width: 94px">
-<col style="width: 60px">
-<col style="width: 57px">
-<col style="width: 106px">
-</colgroup>
+<table>
 <thead>
   <tr>
     <th rowspan="2">Model</th>
