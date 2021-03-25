@@ -116,18 +116,6 @@ We report finetuning results for different kinds of models, measuring recall@K.
   </tr>
   <tr>
     <td>Transformer small</td>
-    <td>0.51</td>
-    <td>0.74</td>
-    <td>0.87</td>
-    <td>0.52</td>
-    <td>0.74</td>
-    <td>0.86</td>
-    <td>0.50</td>
-    <td>0.82</td>
-    <td>0.96</td>
-  </tr>
-  <tr>
-    <td>Transformer small</td>
     <td>0.54</td>
     <td>0.77</td>
     <td>0.90</td>
