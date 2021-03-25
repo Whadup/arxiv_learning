@@ -45,13 +45,25 @@ For sake of completeness, we have included the list of papers we used for pretra
 
 We report finetuning results for different kinds of models, measuring recall@K.
 
-<table>
+<table style="undefined;table-layout: fixed; width: 851px">
+<colgroup>
+<col style="width: 174px">
+<col style="width: 62px">
+<col style="width: 72px">
+<col style="width: 84px">
+<col style="width: 71px">
+<col style="width: 71px">
+<col style="width: 94px">
+<col style="width: 60px">
+<col style="width: 57px">
+<col style="width: 106px">
+</colgroup>
 <thead>
   <tr>
     <th rowspan="2">Model</th>
     <th colspan="3">Equalities</th>
-    <th colspan="3">Inequalities</th>
     <th colspan="3">Mixed Operators</th>
+    <th colspan="3">Inequalities</th>
   </tr>
   <tr>
     <td>R@1</td>
@@ -71,36 +83,84 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td>0.46</td>
     <td>0.64</td>
     <td>0.73</td>
-    <td>0.48</td>
-    <td>0.70</td>
-    <td>0.80</td>
     <td>0.47</td>
     <td>0.63</td>
     <td>0.73</td>
+    <td>0.48</td>
+    <td>0.70</td>
+    <td>0.80</td>
+  </tr>
+  <tr>
+    <td>Tangent-CFT</td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
   </tr>
   <tr>
     <td>GraphCNN</td>
     <td>0.51</td>
     <td>0.83</td>
     <td>0.88</td>
-    <td>0.50</td>
-    <td>0.87</td>
-    <td>0.92</td>
     <td>0.51</td>
     <td>0.83</td>
     <td>0.88</td>
+    <td>0.50</td>
+    <td>0.87</td>
+    <td>0.92</td>
   </tr>
   <tr>
     <td>Transformer small</td>
     <td>0.51</td>
     <td>0.74</td>
     <td>0.87</td>
-    <td>0.50</td>
-    <td>0.82</td>
-    <td>0.96</td>
     <td>0.52</td>
     <td>0.74</td>
     <td>0.86</td>
+    <td>0.50</td>
+    <td>0.82</td>
+    <td>0.96</td>
+  </tr>
+  <tr>
+    <td>Transformer small</td>
+    <td>0.54</td>
+    <td>0.77</td>
+    <td>0.90</td>
+    <td>0.54</td>
+    <td>0.76</td>
+    <td>0.87</td>
+    <td>0.50</td>
+    <td>0.82</td>
+    <td>0.96</td>
+  </tr>
+  <tr>
+    <td>Transformer medium</td>
+    <td>0.53<br></td>
+    <td>0.76</td>
+    <td>0.90</td>
+    <td>0.54</td>
+    <td>0.8</td>
+    <td>0.95</td>
+    <td>0.52</td>
+    <td>0.87</td>
+    <td>0.98</td>
+  </tr>
+  <tr>
+    <td>Transformer large</td>
+    <td>0.58<br></td>
+    <td>0.82</td>
+    <td>0.94</td>
+    <td>0.59</td>
+    <td>0.81</td>
+    <td>0.94</td>
+    <td>0.55</td>
+    <td>0.90</td>
+    <td>0.99</td>
   </tr>
 </tbody>
 </table>
