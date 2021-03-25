@@ -79,18 +79,6 @@ We report finetuning results for different kinds of models, measuring recall@K.
     <td>0.80</td>
   </tr>
   <tr>
-    <td>Tangent-CFT</td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-  </tr>
-  <tr>
     <td>GraphCNN</td>
     <td>0.51</td>
     <td>0.83</td>
