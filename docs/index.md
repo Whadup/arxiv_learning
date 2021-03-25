@@ -1,5 +1,5 @@
 ## Arxiv Learning
-We propose to use unsupervised representation learning techniques to search for relatex mathematical expressions on arxiv.org. A demo is running at:  
+We propose to use unsupervised representation learning techniques to search for related mathematical expressions on arxiv.org. A demo is running at:  
 [https://heureka2.azurewebsites.net](https://heureka2.azurewebsites.net).
 
 ## Preprocessing
