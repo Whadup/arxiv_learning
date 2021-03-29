@@ -35,8 +35,8 @@ def load_finetune_data(basefile, test=False):
         for example in f:
             example = json.loads(example)
             try:
-                a = mathml_to_rootpath(example["part_a"])
-                b = mathml_to_rootpath(example["part_b"])
+                a = mathml_to_root_path(example["part_a"])
+                b = mathml_to_root_path(example["part_b"])
                 X1.append(a)
                 X2.append(b)
             except:
