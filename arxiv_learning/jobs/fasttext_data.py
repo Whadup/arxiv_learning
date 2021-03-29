@@ -40,7 +40,7 @@ def _tree_to_root_path(tree_dict, preorder_str, root_path):
     preorder_str += " " + "{:02X}".format(hash(root_path) % (1<<32))
     if "children" in tree_dict:
         for child in tree_dict["children"]:
-            preorder_str = _tree_to_root_path(child, preorder_str, root_path)
+            preorder_str = _tree_to_root_path(child, preorder_str, without_attr)
     return preorder_str
 
 def mathml_to_string(mathml):
