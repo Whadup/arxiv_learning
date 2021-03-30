@@ -17,7 +17,7 @@ import annoy
 
 def train(dim=64, epoch=1, ws=5, ngrams=2):
     model = fasttext.train_unsupervised(
-        "/data/s1/pfahler/arxiv_v2/plaintext_train.txt",
+        "/data/s1/pfahler/arxiv_v2/rootpath_train.txt",
         model="skipgram",
         dim=dim,
         ws=ws,
@@ -35,8 +35,8 @@ def load_finetune_data(basefile, test=False):
         for example in f:
             example = json.loads(example)
             try:
-                a = mathml_to_string(example["part_a"])
-                b = mathml_to_string(example["part_b"])
+                a = mathml_to_root_path(example["part_a"])
+                b = mathml_to_root_path(example["part_b"])
                 X1.append(a)
                 X2.append(b)
             except:

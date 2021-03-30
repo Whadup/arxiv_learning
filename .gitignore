@@ -10,3 +10,4 @@ eval.csv
 tmp.ann
 experiments
 bow_experiments
+fasttext_experiments
